@@ -1,0 +1,12 @@
+{
+  "_comment": "create-agent-harness provenance - harness-owned; refreshed on scaffold and --update",
+  "schema": 1,
+  "version": "0.4.63",
+  "projectName": "security",
+  "minNode": ">=22.18",
+  "mode": "autonomous",
+  "commit": "b88af0b5f1aa35631d5c2a093d3a68b5336c73ad",
+  "branch": "main",
+  "remoteUrl": "https://github.com/neohum/create-agent-harness.git",
+  "stampedAt": "2026-11-02T07:25:29.094Z"
+}

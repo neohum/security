@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan: Sync-Server-Surge 역공학 방어(전송·저장 암호화 봉투, 프로토콜 스키마 은닉, 서버 측 권위 상태 검증 및 해시 체인 리플레이 차단) 구축</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --card-border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --heading: #f0f6fc;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --amber: #d29922;
+      --red: #f85149;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f8fa;
+        --card-bg: #ffffff;
+        --card-border: #d0d7de;
+        --text: #24292f;
+        --text-muted: #57606a;
+        --heading: #1f2328;
+        --accent: #0969da;
+        --green: #1a7f37;
+        --amber: #9a6700;
+        --red: #cf222e;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 32px 16px;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      text-wrap: pretty;
+    }
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+    header.plan-header {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .header-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    h1.plan-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--heading);
+      margin-bottom: 8px;
+      text-wrap: balance;
+    }
+    .meta-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--card-border);
+    }
+    .meta-item strong {
+      color: var(--heading);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 12px;
+      line-height: 1;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .status-badge {
+      color: #fff;
+    }
+    .risk-badge {
+      border: 1px solid var(--card-border);
+      color: var(--heading);
+      background: rgba(255,255,255,0.05);
+    }
+    .parallel-badge {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .file-badge {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--card-border);
+      color: var(--accent);
+    }
+    .dep-badge {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+    }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--heading);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-wrap: balance;
+    }
+    .card p {
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      text-wrap: pretty;
+    }
+    .card ul {
+      padding-left: 20px;
+    }
+    .card li {
+      margin-bottom: 6px;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      text-wrap: pretty;
+    }
+    .waves-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .waves-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .wave-col {
+      flex: 1 1 200px;
+      background: rgba(255,255,255,0.03);
+      border: 1px dashed var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .wave-header {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .wave-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      margin-bottom: 6px;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+    .steps-section h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--heading);
+      margin-bottom: 16px;
+      text-wrap: balance;
+    }
+    .step-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .step-header {
+      padding: 16px 20px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .step-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .step-num {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: rgba(88, 166, 255, 0.1);
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .step-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--heading);
+      font-family: var(--mono);
+      text-wrap: balance;
+    }
+    .step-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .field-value {
+      color: var(--text);
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      text-wrap: pretty;
+    }
+    .font-mono {
+      font-family: var(--mono);
+    }
+    .badge-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .checklist li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .ac-bullet {
+      color: var(--green);
+      font-weight: bold;
+    }
+    .code-block {
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      overflow-x: auto;
+    }
+    .code-block code {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--heading);
+    }
+    .text-muted {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    footer.plan-footer {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--card-border);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="plan-header">
+      <div class="header-top">
+        <span class="badge status-badge" style="background:#2ea44f">● approved</span>
+        <span class="badge risk-badge">Risk: medium</span>
+        <span class="badge risk-badge">Owner: security-architect</span>
+      </div>
+      <h1 class="plan-title">Sync-Server-Surge 역공학 방어(전송·저장 암호화 봉투, 프로토콜 스키마 은닉, 서버 측 권위 상태 검증 및 해시 체인 리플레이 차단) 구축</h1>
+      <div class="meta-pills">
+        <div class="meta-item">Slug: <code>anti-reverse-engineering-server-verification</code></div>
+        <div class="meta-item">Steps: <strong>4</strong></div>
+        <div class="meta-item">Waves: <strong>3</strong></div>
+        <div class="meta-item">File: <code>plans/anti-reverse-engineering-server-verification.plan.md</code></div>
+      </div>
+    </header>
+
+    <div class="overview-grid">
+      <div class="card">
+        <h2>🎯 Intent (목표)</h2>
+        <p>클라이언트 코드와 네트워크 패킷이 역공학 및 프록시(MITM)·메모리 변조에 노출되는 환경에서 `sync-server-surge`가 클라이언트가 제출한 동기화 페이로드·권한·상태 전이를 무조건 신뢰하지 않도록, **1) 중요 동기화 페이로드의 AEAD(AES-256-GCM) 암호화 봉투(Envelope) 및 필드 단위 기밀성 보장**, **2) 클라이언트 동기화 SDK/번들 난독화 및 디버그 스키마 노출 차단**, **3) 서버 측 권위 상태 머신(Server-Authoritative State Machine), Challenge-Response Nonce, 단조 증가 시퀀스 해시 체인(Hash-Chain) 및 HMAC-SHA256 서명 재검증**의 3대 역공학 방어 체계를 구축합니다.</p>
+      </div>
+
+      <div class="card">
+        <h2>🚫 Non-goals (범위 외)</h2>
+        <ul><li>클라이언트 측 로컬 검증만으로 동기화 권한이나 최종 상태를 확정하는 설계 (모든 최종 권한 및 상태 전이 결정권은 100% 서버에 귀속)</li><li>표준 TLS/HTTPS를 대체하는 독자적인 저수준 전송 계층 암호 알고리즘 발명 (표준 TLS 위에서 애플리케이션 계층 AEAD 봉투 및 서명 검증을 중첩 적용)</li><li>비인가 서드파티 디버그 프록시 허용을 위한 프로덕션 서명 검증 우회 플래그 제공</li></ul>
+      </div>
+
+      <div class="card" style="grid-column: 1 / -1;">
+        <h2>🔍 Verification & Review</h2>
+        <p style="margin-bottom: 8px;"><strong>Verification Strategy:</strong> - Tier 1: npx tsc --noEmit
+- Tier 2: npm test -- tests/security/*.test.ts
+- Tier 3: 패킷 변조·Nonce 리플레이·해시 체인 롤백 공격 시뮬레이션에 대한 서버 측 100% 차단 검증 및 프로덕션 빌드 산출물 역공학 노출 스캔</p>
+        <p><strong>Reviewer Topology:</strong> builder=codex, reviewer=claude, challenge=on</p>
+      </div>
+    </div>
+
+    <div class="waves-section">
+      <h2 style="font-size: 16px; font-weight: 600; color: var(--heading);">🌊 Parallel Execution Waves (DAG)</h2>
+      <div class="waves-container">
+        
+    <div class="wave-col">
+      <div class="wave-header">Wave 1</div>
+      <div class="wave-items">
+        <div class="wave-card">surge-envelope-encryption-and-key-derivation</div><div class="wave-card">surge-server-authoritative-attestation</div>
+      </div>
+    </div>
+  
+    <div class="wave-col">
+      <div class="wave-header">Wave 2</div>
+      <div class="wave-items">
+        <div class="wave-card">surge-sync-protocol-anti-tamper-ledger</div>
+      </div>
+    </div>
+  
+    <div class="wave-col">
+      <div class="wave-header">Wave 3</div>
+      <div class="wave-items">
+        <div class="wave-card">surge-client-bundle-obfuscation-and-hardening</div>
+      </div>
+    </div>
+  
+      </div>
+    </div>
+
+    <div class="steps-section">
+      <h2>📋 Steps Breakdown (4 cards)</h2>
+      
+      <section class="step-card" id="step-1">
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="step-num">Step 1</span>
+            <h3 class="step-title">surge-envelope-encryption-and-key-derivation</h3>
+          </div>
+          <div class="step-meta-badges">
+            
+            <span class="badge risk-badge" style="border-color:#d29922">medium</span>
+            
+          </div>
+        </div>
+
+        <div class="step-body">
+          <div class="field-group">
+            <label class="field-label">Goal</label>
+            <p class="field-value">동기화 대상 중요 데이터 페이로드가 로컬 캐시·전송 구간·스토리지 스냅샷에서 평문으로 노출되지 않도록 HKDF-SHA256 세션 파생 키 기반 AES-256-GCM 암호화 봉투(Encrypted Sync Envelope) 및 AAD 컨텍스트 바인딩 계층 구현</p>
+          </div>
+
+          <div class="field-row">
+            <div class="field-col">
+              <label class="field-label">Assigned Agent</label>
+              <p class="field-value font-mono">codex</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Model</label>
+              <p class="field-value font-mono">default</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Reviewer</label>
+              <p class="field-value font-mono">claude</p>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Files (Declared Blast Radius)</label>
+            <div class="badge-wrap"><span class="badge file-badge">src/security/envelope-crypto.ts</span> <span class="badge file-badge">src/security/key-derivation.ts</span> <span class="badge file-badge">tests/security/envelope-crypto.test.ts</span></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Acceptance Criteria</label>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: src/security/envelope-crypto.ts가 AES-256-GCM(96-bit CSPRNG Nonce, 128-bit Auth Tag)과 HKDF-SHA256을 사용하여 동기화 페이로드를 암호화하고 AAD(tenantId + clientId + syncSequence + schemaVersion) 불일치 시 즉시 복호화를 거부함</li><li><span class="ac-bullet">✓</span> AC-2: 재사용된 IV/Nonce 또는 변조된 Auth Tag 입력 시 타이밍 누수 없이 상수 시간(crypto.timingSafeEqual) 검증 후 즉시 에러를 반환함</li><li><span class="ac-bullet">✓</span> AC-3: 평문 민감 필드(자격증명, 세션 시크릿, 개인 식별 데이터)가 암호화 봉투 외부 메타데이터에 포함될 경우 직렬화 단계에서 Fail-closed로 차단됨</li></ul>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Test Commands</label>
+            <div class="code-block"><code>npm test -- tests/security/envelope-crypto.test.ts</code></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Dependencies</label>
+            <div class="badge-wrap"><span class="text-muted">None</span></div>
+          </div>
+        </div>
+      </section>
+    
+
+      <section class="step-card" id="step-2">
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="step-num">Step 2</span>
+            <h3 class="step-title">surge-server-authoritative-attestation</h3>
+          </div>
+          <div class="step-meta-badges">
+            
+            <span class="badge risk-badge" style="border-color:#d29922">medium</span>
+            <span class="badge parallel-badge">Parallel: yes</span>
+          </div>
+        </div>
+
+        <div class="step-body">
+          <div class="field-group">
+            <label class="field-label">Goal</label>
+            <p class="field-value">역공학된 클라이언트가 위조한 상태 변이(State Mutation)나 리플레이 패킷을 서버에서 원천 차단하기 위해 Challenge-Response Nonce 발급기, HMAC-SHA256 요청 서명 검증 미들웨어, 이전 상태 해시 체인(prevHash -&gt; nextHash) 검증기 구현</p>
+          </div>
+
+          <div class="field-row">
+            <div class="field-col">
+              <label class="field-label">Assigned Agent</label>
+              <p class="field-value font-mono">codex</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Model</label>
+              <p class="field-value font-mono">default</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Reviewer</label>
+              <p class="field-value font-mono">claude</p>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Files (Declared Blast Radius)</label>
+            <div class="badge-wrap"><span class="badge file-badge">src/server/attestation-middleware.ts</span> <span class="badge file-badge">src/server/hash-chain-verifier.ts</span> <span class="badge file-badge">tests/security/server-attestation.test.ts</span></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Acceptance Criteria</label>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: src/server/attestation-middleware.ts가 서버가 발급한 단기 Challenge Nonce(TTL 60초, 1회용 소비)와 요청 본문·타임스탬프·시퀀스 번호에 대한 HMAC-SHA256 서명을 상수 시간 비교로 검증하고 누락·만료·재사용 시 HTTP 401/403으로 차단함</li><li><span class="ac-bullet">✓</span> AC-2: src/server/hash-chain-verifier.ts가 클라이언트가 제출한 동기화 델타의 prevStateHash가 서버 원장의 최신 커밋 해시와 일치하는지 검증하고 클라이언트가 임의로 조작한 권한·점수·타임스탬프 필드를 무시하고 서버 권위 상태 머신으로만 상태를 전이함</li><li><span class="ac-bullet">✓</span> AC-3: 시퀀스 번호 역행(Rollback), Nonce 재전송(Replay), 페이로드 중간 변조(Tampering) 공격 시나리오가 자동화 테스트에서 100% 차단됨</li></ul>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Test Commands</label>
+            <div class="code-block"><code>npm test -- tests/security/server-attestation.test.ts</code></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Dependencies</label>
+            <div class="badge-wrap"><span class="text-muted">None</span></div>
+          </div>
+        </div>
+      </section>
+    
+
+      <section class="step-card" id="step-3">
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="step-num">Step 3</span>
+            <h3 class="step-title">surge-sync-protocol-anti-tamper-ledger</h3>
+          </div>
+          <div class="step-meta-badges">
+            
+            <span class="badge risk-badge" style="border-color:#d29922">medium</span>
+            
+          </div>
+        </div>
+
+        <div class="step-body">
+          <div class="field-group">
+            <label class="field-label">Goal</label>
+            <p class="field-value">암호화 봉투 계층과 서버 무결성 검증 미들웨어를 동기화 라우터 및 영속 원장(Audit Ledger)에 통합하고 위변조 탐지 시 세션 토큰 즉시 폐기 및 보안 감사 이벤트 기록</p>
+          </div>
+
+          <div class="field-row">
+            <div class="field-col">
+              <label class="field-label">Assigned Agent</label>
+              <p class="field-value font-mono">codex</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Model</label>
+              <p class="field-value font-mono">default</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Reviewer</label>
+              <p class="field-value font-mono">claude</p>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Files (Declared Blast Radius)</label>
+            <div class="badge-wrap"><span class="badge file-badge">src/server/sync-router.ts</span> <span class="badge file-badge">src/server/security-audit-ledger.ts</span> <span class="badge file-badge">tests/security/sync-anti-tamper.test.ts</span></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Acceptance Criteria</label>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: src/server/sync-router.ts의 모든 상태 변경 엔드포인트가 서버 무결성 검증 미들웨어와 암호화 봉투 검증을 필수 통과해야만 원장 반영을 허용함</li><li><span class="ac-bullet">✓</span> AC-2: 서명 불일치 또는 해시 체인 깨짐이 임계 횟수 이상 발생한 디바이스/세션에 대해 즉시 토큰 폐기(Revocation) 및 쿨다운 차단을 수행하고 security-audit-ledger에 구조화된 보안 이벤트를 기록함</li><li><span class="ac-bullet">✓</span> AC-3: 정상 동기화 클라이언트와 변조 공격 클라이언트가 혼재된 동시성 테스트에서 정상 세션은 무중단 처리되고 변조 세션만 격리됨이 검증됨</li></ul>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Test Commands</label>
+            <div class="code-block"><code>npm test -- tests/security/sync-anti-tamper.test.ts</code></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Dependencies</label>
+            <div class="badge-wrap"><span class="badge dep-badge">surge-envelope-encryption-and-key-derivation</span> <span class="badge dep-badge">surge-server-authoritative-attestation</span></div>
+          </div>
+        </div>
+      </section>
+    
+
+      <section class="step-card" id="step-4">
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="step-num">Step 4</span>
+            <h3 class="step-title">surge-client-bundle-obfuscation-and-hardening</h3>
+          </div>
+          <div class="step-meta-badges">
+            
+            <span class="badge risk-badge" style="border-color:#d29922">low</span>
+            
+          </div>
+        </div>
+
+        <div class="step-body">
+          <div class="field-group">
+            <label class="field-label">Goal</label>
+            <p class="field-value">클라이언트 측 동기화 어댑터 및 배포 번들에서 내부 프로토콜 상수·시크릿·소스맵 노출을 제거하고 빌드 시 역공학 방어 준수 여부를 자동 검증하는 하드닝 스크립트 구축</p>
+          </div>
+
+          <div class="field-row">
+            <div class="field-col">
+              <label class="field-label">Assigned Agent</label>
+              <p class="field-value font-mono">codex</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Model</label>
+              <p class="field-value font-mono">default</p>
+            </div>
+            <div class="field-col">
+              <label class="field-label">Reviewer</label>
+              <p class="field-value font-mono">claude</p>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Files (Declared Blast Radius)</label>
+            <div class="badge-wrap"><span class="badge file-badge">scripts/harden-build.ts</span> <span class="badge file-badge">vite.config.ts</span> <span class="badge file-badge">tests/security/bundle-hardening.test.ts</span></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Acceptance Criteria</label>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: 프로덕션 빌드 설정에서 sourcemap 비활성화, 디버그 심볼 스트리핑, 프로토콜 내부 식별자 난독화가 적용되고 빌드 산출물에 .map 파일 및 평문 서버 시크릿이 0건임이 확인됨</li><li><span class="ac-bullet">✓</span> AC-2: scripts/harden-build.ts가 빌드 산출물을 스캔하여 평문 키·시크릿 패턴이나 디버그 훅이 발견되면 exit code 1로 빌드를 즉시 중단함</li><li><span class="ac-bullet">✓</span> AC-3: 암호화·난독화·서버 무결성 검증 3대 축의 통합 회귀 테스트 스위트가 모두 통과함</li></ul>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Test Commands</label>
+            <div class="code-block"><code>npm test -- tests/security/bundle-hardening.test.ts</code></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Dependencies</label>
+            <div class="badge-wrap"><span class="badge dep-badge">surge-sync-protocol-anti-tamper-ledger</span></div>
+          </div>
+        </div>
+      </section>
+    
+    </div>
+
+    <footer class="plan-footer">
+      <p>create-agent-harness • Generated plan document companion</p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,58 @@
+services:
+  kalibox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: learning-metasploit/kalibox:latest
+    container_name: kalibox
+    hostname: attacker
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - kali_data:/root
+      - msf_db:/var/lib/postgresql
+    networks:
+      vnet:
+        ipv4_address: 172.28.0.10
+
+  metasploitable2:
+    image: tleemcjr/metasploitable2
+    platform: linux/amd64
+    container_name: metasploitable2
+    hostname: target-linux
+    stdin_open: true
+    tty: true
+    command: sh -c "/bin/services.sh && bash"
+    networks:
+      vnet:
+        ipv4_address: 172.28.0.20
+
+  # 윈도우 VM 없이도 책의 MSSQL 모듈 실습을 할 수 있게 해주는 취약한 SQL Server 컨테이너
+  vuln-mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: target-mssql
+    hostname: target-sql
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=password123!
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    networks:
+      vnet:
+        ipv4_address: 172.28.0.30
+
+networks:
+  vnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  kali_data:
+  msf_db:

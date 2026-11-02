@@ -1,0 +1,32 @@
+node_modules/
+.env
+.env.local
+.env.*
+!.env.example
+.DS_Store
+.next/
+dist/
+build/
+*.log
+
+# autonomous-loop local state (created at runtime, never committed)
+# cooldown.json holds per-agent rate-limit reset times; lock files coordinate
+# task claims; shots/ + reject/ are mobile-approval artifacts;
+# knowledge-overlay.json holds local knowledge tool adoption feedback.
+.harness/
+current_tasks/*.lock
+current.md
+
+# Agent local configs & shared skills
+/.agents/*
+!/.agents/skills/
+# 행동 스펙은 프로젝트가 소유하고 리뷰하는 계약이다 — 무시하면 배포되지 않는다.
+!/.agents/behaviors/
+
+# local runtime logs & test artifacts
+logs/
+*.bundle
+**/test-results/
+**/playwright-report/
+
+# Note: Harness isolation patterns are auto-applied when repository is public (or via ca isolate)

@@ -1,0 +1,31 @@
+{
+  "model": "opus",
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(node scripts/*.ts*)",
+      "Bash(node scripts/loop/*.ts*)",
+      "Bash(bash scripts/loop/health.sh*)",
+      "Bash(bash scripts/loop/cross-build-wails.sh*)",
+      "Bash(claude -p *)",
+      "Bash(codex exec *)",
+      "Bash(agy --print *)",
+      "Bash(antigravity -p *)",
+      "Bash(gh *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git pull*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git checkout*)",
+      "Bash(git stash*)",
+      "Bash(git fetch*)",
+      "Bash(git submodule*)",
+      "Bash(git worktree*)",
+      "Bash(git branch*)",
+      "Bash(git merge*)"
+    ]
+  }
+}
