@@ -110,7 +110,7 @@ const bundleHtml = `<!DOCTYPE html>
   <!-- SPA Client Engine -->
   <script type="module">
     import { renderAppHtml, parseRoleFromUrl } from './src/App.js';
-    import { CH3_MISSIONS, evaluateSubmittedFlag } from './src/components/AttackerDashboard.js';
+    import { CH3_MISSIONS, evaluateSubmittedFlag, evaluateTerminalOutput } from './src/components/AttackerDashboard.js';
     import { INITIAL_PACKET_ALERTS, INITIAL_PATCH_RECOMMENDATIONS } from './src/components/DefenderDashboard.js';
     import { INITIAL_TOPOLOGY_NODES } from './src/components/TopologyRadar.js';
 
@@ -158,6 +158,54 @@ const bundleHtml = `<!DOCTYPE html>
       if (!container || container.getAttribute('data-cmd-bound')) return;
       container.setAttribute('data-cmd-bound', 'true');
 
+      let lastExecutedCmd = '';
+
+      function checkAndApplyAutoEvaluation(cmd, outputText) {
+        if (role !== 'attacker') return;
+        const evalRes = evaluateTerminalOutput(cmd, outputText, missionsState);
+        if (evalRes && evalRes.matched && evalRes.mission) {
+          missionsState = evalRes.updatedMissions;
+          flagStatus = 'success';
+          statusMessage = evalRes.message;
+
+          // Unlock topology node
+          if (evalRes.mission.id === 'm1-whois' || evalRes.mission.id === 'm2-dns-axfr') {
+            const node = nodesState.find(n => n.id === 'fake-recon');
+            if (node) node.status = 'probed';
+          } else if (evalRes.mission.id === 'm3-db-nmap') {
+            const node1 = nodesState.find(n => n.id === 'metasploitable2');
+            if (node1) node1.status = 'discovered';
+            const node2 = nodesState.find(n => n.id === 'vuln-mssql');
+            if (node2) node2.status = 'discovered';
+          } else if (evalRes.mission.id === 'm4-mssql-login') {
+            const node = nodesState.find(n => n.id === 'vuln-mssql');
+            if (node) node.status = 'compromised';
+          } else if (evalRes.mission.id === 'm5-s3-leak') {
+            const node = nodesState.find(n => n.id === 'fake-s3');
+            if (node) node.status = 'compromised';
+          } else if (evalRes.mission.id === 'm6-custom-scanner') {
+            const node = nodesState.find(n => n.id === 'metasploitable2');
+            if (node) node.status = 'compromised';
+          }
+
+          // Advance active mission to next unsolved
+          const nextUnsolved = missionsState.find(m => !m.solved);
+          if (nextUnsolved) {
+            activeMissionId = nextUnsolved.id;
+          }
+
+          // Append celebration log inside terminal
+          const victoryLine = document.createElement('div');
+          victoryLine.className = 'font-mono text-xs text-emerald-400 font-bold py-1.5 my-1.5 px-2 rounded border border-emerald-500/50 bg-emerald-950/40 break-keep';
+          victoryLine.textContent = '[+] 🎯 [퀘스트 자동 완료] ' + evalRes.mission.title + ' (+' + evalRes.mission.points + ' PT) 획득! (현재 총점: ' + evalRes.totalScore + '/600 PT)';
+          container.insertBefore(victoryLine, promptRow);
+          container.scrollTop = container.scrollHeight;
+
+          // Re-render UI to update mission list badges, score pill, radar nodes
+          setTimeout(() => render(), 400);
+        }
+      }
+
       // Append interactive command prompt
       const promptRow = document.createElement('div');
       promptRow.className = 'mt-2 flex items-center gap-1 font-mono text-xs pt-1 border-t border-zinc-800/60';
@@ -187,6 +235,7 @@ const bundleHtml = `<!DOCTYPE html>
         };
         ws.onmessage = (event) => {
           appendLog(container, event.data);
+          checkAndApplyAutoEvaluation(lastExecutedCmd, event.data);
         };
       } catch (err) {
         console.warn('WebSocket connection deferred:', err);
@@ -206,6 +255,7 @@ const bundleHtml = `<!DOCTYPE html>
           const cmd = input.value.trim();
           if (!cmd) return;
           input.value = '';
+          lastExecutedCmd = cmd;
 
           appendLog(container, \`\${promptLabel.textContent}\${cmd}\`);
 
@@ -213,21 +263,35 @@ const bundleHtml = `<!DOCTYPE html>
             ws.send(cmd + '\\r');
           } else {
             // Local fallback handler
-            handleLocalMockCommand(cmd, role, (out) => appendLog(container, out));
+            handleLocalMockCommand(cmd, role, (out) => appendLog(container, out), checkAndApplyAutoEvaluation);
           }
         }
       });
     }
 
-    function handleLocalMockCommand(cmd, role, output) {
-      if (cmd.includes('whois')) {
-        output(\`% MegaCorp Internal Whois Database Server\\nDomain: megacorp.internal\\nRegistrant: MegaCorp Technologies, Inc.\\nTech Email: admin@megacorp.internal\\nCIDR: 172.28.0.0/16\\nStatus: ACTIVE\\nFLAG: FLAG{WHOIS_RECON_SUCCESS}\`);
-      } else if (cmd.includes('axfr') || cmd.includes('dig')) {
-        output(\`;; <<>> DiG 9.18.1 <<>> axfr @172.28.0.15 megacorp.internal\\nmegacorp.internal. IN SOA ns1.megacorp.internal.\\nns1.megacorp.internal. IN A 172.28.0.15\\ntarget-linux.megacorp.internal. IN A 172.28.0.20\\nbackup-s3.megacorp.internal. IN A 172.28.0.25\\ndb-mssql.megacorp.internal. IN A 172.28.0.30\\nFLAG: FLAG{ZONE_TRANSFER_EXPOSED}\`);
-      } else if (cmd.includes('nmap')) {
-        output(\`Starting Nmap 7.94 ( https://nmap.org )\\nNmap scan report for 172.28.0.20\\nPORT     STATE SERVICE\\n21/tcp   open  ftp\\n22/tcp   open  ssh\\n80/tcp   open  http\\n445/tcp  open  netbios-ssn\\nFLAG: FLAG{MSF_DB_NMAP_RECORDED}\`);
+    function handleLocalMockCommand(cmd, role, output, checkAutoEval) {
+      const lower = cmd.toLowerCase();
+      let resText = '';
+
+      if (lower.includes('whois')) {
+        resText = \`% MegaCorp Internal Whois Database Server\\nDomain: megacorp.internal\\nRegistrant: MegaCorp Technologies, Inc.\\nTech Email: admin@megacorp.internal\\nCIDR: 172.28.0.0/16\\nStatus: ACTIVE\\nFLAG: FLAG{WHOIS_RECON_SUCCESS}\`;
+      } else if (lower.includes('axfr') || lower.includes('dig')) {
+        resText = \`;; <<>> DiG 9.18.1 <<>> axfr @172.28.0.15 megacorp.internal\\nmegacorp.internal. IN SOA ns1.megacorp.internal.\\nns1.megacorp.internal. IN A 172.28.0.15\\ntarget-linux.megacorp.internal. IN A 172.28.0.20\\nbackup-s3.megacorp.internal. IN A 172.28.0.25\\ndb-mssql.megacorp.internal. IN A 172.28.0.30\\nFLAG: FLAG{ZONE_TRANSFER_EXPOSED}\`;
+      } else if (lower.includes('nmap') || lower.includes('db_nmap')) {
+        resText = \`Starting Nmap 7.94 ( https://nmap.org )\\nNmap scan report for 172.28.0.20\\nPORT     STATE SERVICE\\n21/tcp   open  ftp\\n22/tcp   open  ssh\\n80/tcp   open  http\\n445/tcp  open  netbios-ssn\\nNmap scan report for 172.28.0.30\\nPORT     STATE SERVICE\\n1433/tcp open  ms-sql-s\\nFLAG: FLAG{MSF_DB_NMAP_RECORDED}\`;
+      } else if (lower.includes('mssql')) {
+        resText = \`[*] 172.28.0.30:1433 - Starting MSSQL login brute-force...\\n[+] 172.28.0.30:1433 - MSSQL - Login Successful: sa:Password123!\\n[*] Active session established on MSSQL Server 2019\\nFLAG: FLAG{MSSQL_SA_PWNED}\`;
+      } else if (lower.includes('s3') || lower.includes('aws') || lower.includes('minio')) {
+        resText = \`download: s3://megacorp-backup/config.env to -\\nDB_HOST=172.28.0.30\\nDB_USER=sa\\nDB_PASS=Password123!\\nAWS_ACCESS_KEY_ID=minioadmin\\nFLAG: FLAG{S3_CONFIDENTIAL_LEAK}\`;
+      } else if (lower.includes('custom_tcp_banner') || lower.includes('custom') || lower.includes('banner')) {
+        resText = \`[*] Running custom TCP banner scanner against 172.28.0.20...\\n[+] 172.28.0.20:21 - Banner: 220 (vsFTPd 2.3.4)\\n[*] Module execution completed.\\nFLAG: FLAG{CUSTOM_RUBY_BANNER_GRABBED}\`;
       } else {
-        output(\`[*] Executed: \${cmd}\\n[+] Ready for next reconnaissance command.\`);
+        resText = \`[*] Executed: \${cmd}\\n[+] Ready for next reconnaissance command.\`;
+      }
+
+      output(resText);
+      if (typeof checkAutoEval === 'function') {
+        checkAutoEval(cmd, resText);
       }
     }
 

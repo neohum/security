@@ -269,6 +269,38 @@ class MockShell extends EventEmitter implements TerminalSession {
         );
         break;
 
+      case "mssql":
+      case "sqsh":
+        this.emitOutput(
+          "[*] Connecting to 172.28.0.30:1433 with sa credentials...\r\n" +
+            "[+] MSSQL Login Successful: sa:Password123!\r\n" +
+            "1> SELECT @@VERSION\r\n" +
+            "Microsoft SQL Server 2019 (RTM-CU18) - 15.0.4261.1\r\n" +
+            "Flag Hint: FLAG{MSSQL_SA_PWNED}\r\n"
+        );
+        break;
+
+      case "aws":
+      case "mc":
+      case "s3":
+        this.emitOutput(
+          "download: s3://megacorp-backup/config.env to -\r\n" +
+            "DB_HOST=172.28.0.30\r\n" +
+            "DB_USER=sa\r\n" +
+            "DB_PASS=Password123!\r\n" +
+            "AWS_ACCESS_KEY_ID=minioadmin\r\n" +
+            "Flag Hint: FLAG{S3_CONFIDENTIAL_LEAK}\r\n"
+        );
+        break;
+
+      case "ruby":
+        this.emitOutput(
+          "[*] Executing custom_tcp_banner against 172.28.0.20...\r\n" +
+            "[+] [172.28.0.20:21] - Banner: 220 (vsFTPd 2.3.4)\r\n" +
+            "Flag Hint: FLAG{CUSTOM_RUBY_BANNER_GRABBED}\r\n"
+        );
+        break;
+
       default:
         this.emitOutput(`${main}: command executed in simulated environment\r\n`);
         break;
@@ -298,6 +330,24 @@ class MockShell extends EventEmitter implements TerminalSession {
     }
 
     if (cmd === "run" || cmd === "exploit") {
+      if (this.prompt.includes("mssql")) {
+        this.emitOutput(
+          "[*] 172.28.0.30:1433 - Starting MSSQL login brute-force...\r\n" +
+            "[+] 172.28.0.30:1433 - MSSQL - Login Successful: sa:Password123!\r\n" +
+            "[*] Active session established. Flag: FLAG{MSSQL_SA_PWNED}\r\n" +
+            this.prompt
+        );
+        return;
+      }
+      if (this.prompt.includes("custom") || this.prompt.includes("banner")) {
+        this.emitOutput(
+          "[*] Running custom TCP banner scanner against 172.28.0.20...\r\n" +
+            "[+] 172.28.0.20:21 - Banner: 220 (vsFTPd 2.3.4)\r\n" +
+            "[*] Auxiliary module execution completed. Flag: FLAG{CUSTOM_RUBY_BANNER_GRABBED}\r\n" +
+            this.prompt
+        );
+        return;
+      }
       this.emitOutput(
         "[*] Running module against 172.28.0.0/16...\r\n" +
           "[+] [172.28.0.10:445]   - Found Samba 3.0.20-Debian\r\n" +
