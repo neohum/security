@@ -13,6 +13,7 @@ import { parseRoleFromUrl, renderAppHtml } from "../client/src/App.ts";
 import {
   CH3_MISSIONS,
   evaluateSubmittedFlag,
+  evaluateTerminalOutput,
   renderAttackerDashboardHtml,
 } from "../client/src/components/AttackerDashboard.ts";
 import {
@@ -79,6 +80,39 @@ describe("Attacker Dashboard & Mission Scoring (AttackerDashboard.tsx)", () => {
     const result = evaluateSubmittedFlag("FLAG{INVALID_GUESS}", CH3_MISSIONS);
     assert.equal(result.success, false);
     assert.ok(result.message.includes("일치하지 않는 플래그입니다"));
+  });
+
+  it("automatically evaluates terminal commands and stdout outputs without manual flag entry", () => {
+    // 1단계 Whois command and output auto evaluation
+    const whoisRes = evaluateTerminalOutput(
+      "whois -h 172.28.0.15 megacorp.internal",
+      "% MegaCorp Internal Whois Database Server\nDomain: megacorp.internal\nTech Email: admin@megacorp.internal\nFLAG: FLAG{WHOIS_RECON_SUCCESS}",
+      CH3_MISSIONS,
+    );
+    assert.equal(whoisRes.matched, true);
+    assert.equal(whoisRes.mission?.id, "m1-whois");
+    assert.equal(whoisRes.totalScore, 100);
+    assert.ok(whoisRes.message?.includes("자동 완료"));
+
+    // 2단계 DNS AXFR command auto evaluation
+    const axfrRes = evaluateTerminalOutput(
+      "dig axfr @172.28.0.15 megacorp.internal",
+      ";; <<>> DiG 9.18.1 <<>> axfr @172.28.0.15 megacorp.internal\nns1.megacorp.internal. IN A 172.28.0.15",
+      whoisRes.updatedMissions,
+    );
+    assert.equal(axfrRes.matched, true);
+    assert.equal(axfrRes.mission?.id, "m2-dns-axfr");
+    assert.equal(axfrRes.totalScore, 200);
+
+    // 3단계 db_nmap scan auto evaluation
+    const nmapRes = evaluateTerminalOutput(
+      "nmap -sS -p 21,22,80 172.28.0.20",
+      "PORT STATE SERVICE\n21/tcp open ftp\n22/tcp open ssh",
+      axfrRes.updatedMissions,
+    );
+    assert.equal(nmapRes.matched, true);
+    assert.equal(nmapRes.mission?.id, "m3-db-nmap");
+    assert.equal(nmapRes.totalScore, 300);
   });
 
   it("AC-4: renders dashboard HTML with Korean typography & button centering standards", () => {

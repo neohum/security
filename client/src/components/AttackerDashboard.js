@@ -103,6 +103,47 @@ export function evaluateSubmittedFlag(flagInput, missions = CH3_MISSIONS) {
   };
 }
 
+export function evaluateTerminalOutput(cmd = "", output = "", missions = CH3_MISSIONS) {
+  const text = `${cmd} ${output}`.toLowerCase();
+
+  for (const m of missions) {
+    if (m.solved) continue;
+
+    let isMatch = false;
+    if (m.id === "m1-whois") {
+      isMatch = text.includes("whois") && (text.includes("megacorp") || text.includes("172.28.0.15") || text.includes("admin@megacorp") || text.includes("whois_recon_success"));
+    } else if (m.id === "m2-dns-axfr") {
+      isMatch = (text.includes("axfr") || text.includes("zone transfer")) && (text.includes("megacorp") || text.includes("172.28.0.15") || text.includes("ns1") || text.includes("zone_transfer_exposed"));
+    } else if (m.id === "m3-db-nmap") {
+      isMatch = (text.includes("nmap") || text.includes("db_nmap")) && (text.includes("172.28.0.20") || text.includes("21/tcp") || text.includes("open  ftp") || text.includes("msf_db_nmap_recorded") || text.includes("syn_scan_detected"));
+    } else if (m.id === "m4-mssql-login") {
+      isMatch = (text.includes("mssql") || text.includes("1433")) && (text.includes("login") || text.includes("sa") || text.includes("run") || text.includes("instance") || text.includes("mssql_sa_pwned"));
+    } else if (m.id === "m5-s3-leak") {
+      isMatch = (text.includes("s3") || text.includes("minio") || text.includes("9000")) && (text.includes("megacorp-backup") || text.includes("config.env") || text.includes("s3_confidential_leak"));
+    } else if (m.id === "m6-custom-scanner") {
+      isMatch = (text.includes("custom_tcp_banner") || text.includes("custom-scanner") || text.includes("tcp_banner") || text.includes("custom_ruby_banner_grabbed"));
+    }
+
+    if (!isMatch && m.flagKey && text.includes(m.flagKey.toLowerCase())) {
+      isMatch = true;
+    }
+
+    if (isMatch) {
+      const updatedMissions = missions.map((x) => (x.id === m.id ? { ...x, solved: true } : x));
+      const totalScore = updatedMissions.filter((x) => x.solved).reduce((acc, x) => acc + x.points, 0);
+      return {
+        matched: true,
+        mission: m,
+        updatedMissions,
+        totalScore,
+        message: `🎯 터미널 정찰 성공! "${m.title}" 퀘스트가 자동 완료되었습니다. (+${m.points} PT)`,
+      };
+    }
+  }
+
+  return { matched: false, updatedMissions: missions };
+}
+
 export function renderAttackerDashboardHtml(props = {}) {
   const missions = props.missions ?? CH3_MISSIONS;
   const nodes = props.nodes ?? INITIAL_TOPOLOGY_NODES;
@@ -208,30 +249,30 @@ export function renderAttackerDashboardHtml(props = {}) {
 
         <div class="p-2.5 rounded border border-zinc-800 bg-[#0f1115] flex flex-col justify-between">
           <div>
-            <span class="text-[11px] font-semibold text-[#ff5d6c] uppercase tracking-wider whitespace-nowrap">
-              플래그(Flag) 제출 및 자동 채점
-            </span>
-            <p class="text-[11px] text-[#8a8f9c] break-keep mt-0.5 mb-2">
-              정찰 산출물에서 획득한 <code class="font-mono text-zinc-300">FLAG{...}</code> 형식의 문자열을 입력하세요.
-            </p>
-            <div class="flex items-center gap-2">
-              <input
-                type="text"
-                class="flag-input flex-1 px-2.5 py-1.5 bg-[#08090b] border border-zinc-700 rounded text-xs font-mono text-[#e7e9ee] focus:border-[#7c8cff] focus:outline-none placeholder-zinc-600"
-                placeholder="FLAG{...}"
-                value="${props.submittedFlag || ""}"
-              />
-              <button
-                type="button"
-                class="btn-submit-flag inline-flex items-center justify-center leading-none px-3 py-1.5 text-xs font-semibold bg-[#ff5d6c] hover:bg-[#ff4253] text-white rounded border border-[#ff5d6c] transition-colors whitespace-nowrap"
-              >
-                제출
-              </button>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-semibold text-[#ff5d6c] uppercase tracking-wider whitespace-nowrap flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                실시간 터미널 정찰 자동 채점기
+              </span>
+              <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-950/30 text-emerald-400 whitespace-nowrap">
+                AUTO-EVAL ACTIVE
+              </span>
             </div>
+            <p class="text-[11px] text-[#8a8f9c] break-keep mt-0.5 mb-2">
+              우측 칼리 터미널에서 명령어를 실행하면, 출력 결과(FLAG{...} 및 취약점 지문)를 실시간 감지하여 수동 플래그 입력 없이 퀘스트를 즉시 자동 채점하고 점수를 부여합니다.
+            </p>
+            <div class="flex items-center gap-2 p-2 bg-[#08090b] rounded border border-zinc-800 text-xs font-mono text-[#38ef7d]">
+              <i class="fi fi-rr-terminal flex items-center justify-center leading-none text-[#7c8cff]"></i>
+              <span class="truncate">터미널 실행 감시 중: ${activeMission.hintCommand.split('\n')[0]}</span>
+            </div>
+            <!-- Hidden manual fallback for compatibility -->
+            <input type="hidden" class="flag-input" value="${props.submittedFlag || ""}" placeholder="FLAG{...}" />
+            <button type="button" class="btn-submit-flag hidden">제출</button>
           </div>
 
-          <div class="mt-2 text-[11px] p-1.5 rounded border ${flagStatusClass} break-keep">
-            ${props.statusMessage || "플래그를 제출하여 채점 결과를 확인하세요."}
+          <div class="mt-2 text-[11px] p-1.5 rounded border ${flagStatusClass} break-keep flex items-center justify-between">
+            <span class="truncate mr-2">${props.statusMessage || "터미널에서 추천 명령어를 실행하면 퀘스트가 자동 완료됩니다."}</span>
+            <span class="font-mono text-[10px] text-zinc-500 shrink-0">${solvedCount}/${missions.length} 완료</span>
           </div>
         </div>
       </div>
