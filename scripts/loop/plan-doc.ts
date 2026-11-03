@@ -1054,6 +1054,11 @@ export function renderPlanHtml(doc: PlanDoc): string {
 </head>
 <body>
   <div class="container">
+    <nav style="margin-bottom: 16px;">
+      <a href="index.html" style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+        ← 전체 계획서 목록 (Plans Portal)
+      </a>
+    </nav>
     <header class="plan-header">
       <div class="header-top">
         <span class="badge status-badge" style="background:${statusColor}">● ${escapeHtml(doc.status)}</span>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan: 메타스플로잇 2/e 3장 인텔리전스 수집 인터랙티브 시뮬레이션 게임 구축</title>
+  <title>Plan: 메타스플로잇 2/e 3장 인텔리전스 수집 인터랙티브 시뮬레이션 게임 구축 (Windows 호스트 &amp; LAN 다중 접속 협업 랩)</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -322,13 +322,18 @@
 </head>
 <body>
   <div class="container">
+    <nav style="margin-bottom: 16px;">
+      <a href="index.html" style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+        ← 전체 계획서 목록 (Plans Portal)
+      </a>
+    </nav>
     <header class="plan-header">
       <div class="header-top">
         <span class="badge status-badge" style="background:#2ea44f">● approved</span>
         <span class="badge risk-badge">Risk: medium</span>
         <span class="badge risk-badge">Owner: neohum</span>
       </div>
-      <h1 class="plan-title">메타스플로잇 2/e 3장 인텔리전스 수집 인터랙티브 시뮬레이션 게임 구축</h1>
+      <h1 class="plan-title">메타스플로잇 2/e 3장 인텔리전스 수집 인터랙티브 시뮬레이션 게임 구축 (Windows 호스트 &amp; LAN 다중 접속 협업 랩)</h1>
       <div class="meta-pills">
         <div class="meta-item">Slug: <code>metasploit-ch3-simulation</code></div>
         <div class="meta-item">Steps: <strong>5</strong></div>
@@ -340,20 +345,21 @@
     <div class="overview-grid">
       <div class="card">
         <h2>🎯 Intent (목표)</h2>
-        <p>『메타스플로잇 Metasploit, 2/e - 침투 테스트 실전 가이드』 3장 &quot;인텔리전스 수집&quot;의 전 과정(수동 정보 수집: 후이즈·넷크래프트·DNS 분석, 능동 정보 수집: Nmap·MSF 포트 스캔, 타깃 스캔: SMB·MSSQL·S3·SSH·FTP·SNMP, 커스텀 MSF 스캐너 제작)을 실제 외부 인터넷 질의 없이 안전한 로컬 샌드박스(페이크 인프라)에서 체험할 수 있는 1시간 코스 인터랙티브 시뮬레이션 게임을 구축합니다.  
-화면은 `colorfigures` 스타일의 다크 미니멀 2×2 그리드로 구성하여, 좌측에는 공격자의 관점(토폴로지 맵 &amp; 공격 터미널)을, 우측에는 방어자의 관점(실시간 IDS 로그 &amp; 방어 튜토리얼 터미널)을 제공함으로써 공격과 방어의 상호작용을 한눈에 체득할 수 있도록 합니다. 기존 `lab/lab` 도커 설정을 그대로 승계하고 오버레이하여 리눅스·맥·윈도우에서 단일 명령어로 원클릭 실행되도록 패키징합니다.</p>
+        <p>『메타스플로잇 Metasploit, 2/e - 침투 테스트 실전 가이드』 3장 &quot;인텔리전스 수집&quot;의 전 과정(수동 정보 수집: 후이즈·넷크래프트·DNS 분석, 능동 정보 수집: Nmap·MSF 포트 스캔, 타깃 스캔: SMB·MSSQL·S3·SSH·FTP·SNMP, 커스텀 MSF 스캐너 제작)을 외부 인터넷 질의 없이 안전한 로컬 샌드박스에서 체험할 수 있는 인터랙티브 시뮬레이션 게임을 구축합니다.
+
+특히 **호스트 PC로 Windows 10/11(Docker Desktop WSL2)** 1대를 중앙 서버로 지정하고, 동일 Wi-Fi 네트워크에 연결된 여러 대의 컴퓨터(Mac, Linux, Windows 노트북)가 별도 설치 없이 웹 브라우저(`http://{호스트IP}:3000`) 또는 SSH로 접속하여 **공격자(Attacker)**, **방어자(Defender)**, **관제/참관(Observer)** 역할을 실시간으로 분담 수행하는 LAN 협업 훈련 환경을 완성합니다. 윈도우 방화벽 인바운드 자동 등록, Wi-Fi IP 자동 감지, 역할별 전용 뷰 분기 및 실시간 패킷 동기화를 단일 원클릭 런처(`run-host.ps1`)로 제공합니다.</p>
       </div>
 
       <div class="card">
         <h2>🚫 Non-goals (범위 외)</h2>
-        <ul><li>실제 공용 인터넷(외부 Whois 레지스트리, 실제 Netcraft 도메인, 외부 AWS S3 등)으로의 실제 패킷 전송 (100% 로컬 샌드박스 격리)</li><li>도서 3장 범위 외의 침투 익스플로잇(4장 이후의 취약점 공격 및 페이로드 셸 획득)으로의 과도한 범위 확장</li><li>상용 SIEM/유료 침입탐지 소프트웨어 의존성 추가 (오픈소스 경량 도구로 자립 완결)</li><li>특정 단일 OS에만 종속되는 GUI 래퍼 개발 (브라우저 기반 xterm.js 표준 웹 앱 채택)</li></ul>
+        <ul><li>실제 공용 인터넷(외부 Whois 레지스트리, 실제 Netcraft 도메인, 외부 AWS S3 등)으로의 실제 패킷 전송 (100% 로컬 샌드박스 격리)</li><li>도서 3장 범위 외의 침투 익스플로잇(4장 이후의 취약점 공격 및 페이로드 셸 획득)으로의 과도한 범위 확장</li><li>상용 SIEM/유료 침입탐지 소프트웨어 의존성 추가 (오픈소스 경량 도구로 자립 완결)</li><li>참가자 컴퓨터(클라이언트)마다 Docker Desktop을 강제 설치시키는 분산 배포 방식 배제 (호스트 1대 집중형 Zero-Setup 채택)</li></ul>
       </div>
 
       <div class="card" style="grid-column: 1 / -1;">
         <h2>🔍 Verification & Review</h2>
-        <p style="margin-bottom: 8px;"><strong>Verification Strategy:</strong> - Tier 1: `npx tsx scripts/loop/plan-doc.ts check metasploit-ch3-simulation` 계획서 유효성 100% 통과
-- Tier 2: `node --import tsx --test tests/*.test.ts` (인프라 설정, 백엔드 게이트웨이, 시나리오 평가 엔진 단위 테스트 통과)
-- Tier 3: 도커 컨테이너 빌드 후 브라우저(localhost:3000)에서 2×2 그리드 UI 및 양방향 웹 터미널 실시간 스트리밍 시각 검증</p>
+        <p style="margin-bottom: 8px;"><strong>Verification Strategy:</strong> - Tier 1: `npx tsx scripts/loop/plan-doc.ts check metasploit-ch3-simulation` 유효성 검사 100% 통과
+- Tier 2: `node --import tsx --test tests/*.test.ts` (인프라 구성, 게이트웨이 WebSocket, 역할별 라우터 단위 테스트 통과)
+- Tier 3: 윈도우 호스트에서 `.\run-host.ps1` 모의 실행 및 로컬 IP 바인딩, 브라우저 다중 탭(attacker, defender) 동시 접속 상호작용 검증</p>
         <p><strong>Reviewer Topology:</strong> builder=codex, reviewer=claude, challenge=on</p>
       </div>
     </div>
@@ -393,7 +399,7 @@
     <div class="wave-col">
       <div class="wave-header">Wave 5</div>
       <div class="wave-items">
-        <div class="wave-card">sim-cross-platform-bootstrap</div>
+        <div class="wave-card">sim-host-bootstrap</div>
       </div>
     </div>
   
@@ -419,7 +425,7 @@
         <div class="step-body">
           <div class="field-group">
             <label class="field-label">Goal</label>
-            <p class="field-value">기존 `lab/lab` 컨테이너(kalibox, metasploitable2, vuln-mssql)와 완벽히 연동되는 페이크 인텔리전스 인프라(Fake Whois, Fake Netcraft, Fake DNS with AXFR, Fake AWS S3 MinIO)를 오버레이 도커 구성으로 완비</p>
+            <p class="field-value">기존 `lab/lab` 컨테이너(kalibox, metasploitable2, vuln-mssql)와 연동되는 페이크 인텔리전스 인프라(Fake Whois, Fake Netcraft, Fake DNS with AXFR, Fake AWS S3 MinIO)를 구축하고 윈도우 호스트 바인딩 준비</p>
           </div>
 
           <div class="field-row">
@@ -444,7 +450,7 @@
 
           <div class="field-group">
             <label class="field-label">Acceptance Criteria</label>
-            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: `docker-compose.sim.yaml`이 `lab/lab/compose.yaml`의 기존 설정을 파괴하지 않고 오버레이하여 모든 컨테이너가 172.28.0.0/16 서브넷에서 정상 기동됨</li><li><span class="ac-bullet">✓</span> AC-2: kalibox 컨테이너에서 `whois -h 172.28.0.15 megacorp.internal` 질의 시 가상 기업 등록 데이터가 정상 반환됨</li><li><span class="ac-bullet">✓</span> AC-3: `dig axfr @172.28.0.15 megacorp.internal` 질의 시 모의 서브도메인 목록(db-mssql, backup-s3 등)이 모두 노출되는 Zone Transfer 취약점이 재현됨</li><li><span class="ac-bullet">✓</span> AC-4: Fake S3에 `megacorp-backup` 공개 버킷 및 기밀 데이터(`config.env`, `db_passwords.txt`)가 초기 적재됨</li></ul>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: `docker-compose.sim.yaml`이 `lab/lab/compose.yaml`을 오버레이하여 모든 컨테이너가 172.28.0.0/16 서브넷에서 정상 기동됨</li><li><span class="ac-bullet">✓</span> AC-2: kalibox 컨테이너에서 `whois -h 172.28.0.15 megacorp.internal` 질의 시 가상 기업 등록 데이터가 정상 반환됨</li><li><span class="ac-bullet">✓</span> AC-3: `dig axfr @172.28.0.15 megacorp.internal` 질의 시 모의 서브도메인 목록(db-mssql, backup-s3 등)이 모두 노출되는 Zone Transfer 취약점이 재현됨</li><li><span class="ac-bullet">✓</span> AC-4: Fake S3에 `megacorp-backup` 공개 버킷 및 기밀 데이터(`config.env`, `db_passwords.txt`)가 초기 적재됨</li></ul>
           </div>
 
           <div class="field-group">
@@ -476,7 +482,7 @@
         <div class="step-body">
           <div class="field-group">
             <label class="field-label">Goal</label>
-            <p class="field-value">공격자(kalibox)와 방어자(metasploitable2/ids) 컨테이너에 각각 연결되는 Web PTY 웹소켓 서버를 구축하고, 네트워크 패킷 캡처 스트림을 브라우저에 실시간 브로드캐스팅하는 백엔드 엔진 구현</p>
+            <p class="field-value">공격자(kalibox)와 방어자(metasploitable2/ids) 컨테이너에 각각 연결되는 Web PTY 웹소켓 서버를 구축하고, 같은 Wi-Fi 대역 다중 클라이언트 접속을 지원하는 LAN 세션 게이트웨이 구현</p>
           </div>
 
           <div class="field-row">
@@ -496,12 +502,12 @@
 
           <div class="field-group">
             <label class="field-label">Files (Declared Blast Radius)</label>
-            <div class="badge-wrap"><span class="badge file-badge">server/index.ts</span> <span class="badge file-badge">server/pty-manager.ts</span> <span class="badge file-badge">server/traffic-monitor.ts</span> <span class="badge file-badge">server/scenario-state.ts</span> <span class="badge file-badge">tests/server-gateway.test.ts</span></div>
+            <div class="badge-wrap"><span class="badge file-badge">server/index.ts</span> <span class="badge file-badge">server/lan-manager.ts</span> <span class="badge file-badge">server/pty-manager.ts</span> <span class="badge file-badge">server/traffic-monitor.ts</span> <span class="badge file-badge">server/scenario-state.ts</span> <span class="badge file-badge">tests/server-gateway.test.ts</span></div>
           </div>
 
           <div class="field-group">
             <label class="field-label">Acceptance Criteria</label>
-            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: WebSocket 엔드포인트 `/ws/terminal/attacker` 및 `/ws/terminal/defender`를 통해 각 도커 컨테이너의 TTY 세션이 지연 없이 xterm.js 클라이언트와 양방향 통신함</li><li><span class="ac-bullet">✓</span> AC-2: 가상 네트워크 브릿지에서 발생하는 SYN 패킷 및 포트 접근 이벤트가 감지되어 `/ws/events` 채널로 실시간 JSON 스트리밍됨</li><li><span class="ac-bullet">✓</span> AC-3: 세션별 시나리오 퀘스트 진행 상태 및 플래그 획득 여부를 메모리/SQLite에 안전하게 저장 및 동기화함</li></ul>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: WebSocket 엔드포인트 `/ws/terminal/attacker` 및 `/ws/terminal/defender`를 통해 각 도커 컨테이너의 TTY 세션이 지연 없이 외부 Wi-Fi 클라이언트와 양방향 통신함</li><li><span class="ac-bullet">✓</span> AC-2: 가상 네트워크 브릿지에서 발생하는 SYN 패킷 및 포트 접근 이벤트가 감지되어 `/ws/events` 채널로 실시간 JSON 스트리밍됨</li><li><span class="ac-bullet">✓</span> AC-3: 세션별 시나리오 퀘스트 진행 상태 및 플래그 획득 여부를 메모리/SQLite에 안전하게 저장 및 동기화함</li><li><span class="ac-bullet">✓</span> AC-4: 외부 클라이언트(맥, 리눅스, 다른 윈도우 PC)가 자신의 터미널을 선호할 경우를 위한 컨테이너 SSH 포트(`0.0.0.0:2222`) 바인딩 인터페이스를 지원함</li></ul>
           </div>
 
           <div class="field-group">
@@ -533,7 +539,7 @@
         <div class="step-body">
           <div class="field-group">
             <label class="field-label">Goal</label>
-            <p class="field-value">`https://april-zhu.com/colorfigures` 스타일의 미니멀 다크 모드 2×2 그리드 SPA 웹 UI를 구축하고, 상단 2칸(공격자/방어자 대시보드)과 하단 2칸(트윈 xterm.js 터미널) 연동</p>
+            <p class="field-value">`https://april-zhu.com/colorfigures` 스타일의 미니멀 다크 모드 2×2 그리드 SPA 웹 UI를 구축하고, URL 역할 파라미터(`role=attacker|defender|observer`)에 따라 맞춤형 뷰를 렌더링하는 다중 클라이언트 인터페이스 구현</p>
           </div>
 
           <div class="field-row">
@@ -558,7 +564,7 @@
 
           <div class="field-group">
             <label class="field-label">Acceptance Criteria</label>
-            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: 화면이 가로 2열, 세로 2행의 반응형 2×2 그리드로 분할되며, 상하/좌우 분할 비율을 조정할 수 있는 스플릿 리사이저가 정상 작동함</li><li><span class="ac-bullet">✓</span> AC-2: 좌상단 공격자 뷰에 발견된 자산 토폴로지 레이더와 퀘스트 체크리스트가 표시되고, 우상단 방어자 뷰에 튜토리얼 가이드와 실시간 IDS 패킷 레이더가 렌더링됨</li><li><span class="ac-bullet">✓</span> AC-3: 하단 좌/우 터미널이 xterm.js 기반으로 구동되어 컬러 출력, 단축키, 복사/붙여넣기 및 리사이즈가 완벽 지원됨</li><li><span class="ac-bullet">✓</span> AC-4: `DESIGN.md` 규격 준수 (한국어 줄바꿈 `break-keep`, `text-balance`, 버튼 및 배지 완벽 중앙 정렬, 비대칭 테두리 배제)</li></ul>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: 기본 화면은 2×2 그리드(공격 대시보드+터미널, 방어 대시보드+터미널)로 렌더링되며 스플릿 리사이저가 정상 작동함</li><li><span class="ac-bullet">✓</span> AC-2: `?role=attacker` 접속 시 공격자 전용 풀스크린 뷰(Kali 터미널 + 토폴로지 레이더 + 공격 퀘스트)로 최적화 렌더링됨</li><li><span class="ac-bullet">✓</span> AC-3: `?role=defender` 접속 시 방어자 전용 풀스크린 뷰(실시간 IDS 패킷 감시창 + 방어 터미널 + 튜토리얼 가이드)로 최적화 렌더링됨</li><li><span class="ac-bullet">✓</span> AC-4: `DESIGN.md` 규격 준수 (한국어 줄바꿈 `break-keep`, `text-balance`, 버튼 및 배지 완벽 중앙 정렬, 비대칭 테두리 배제)</li></ul>
           </div>
 
           <div class="field-group">
@@ -615,7 +621,7 @@
 
           <div class="field-group">
             <label class="field-label">Acceptance Criteria</label>
-            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: 수동 정보 수집 단계에서 Whois, Netcraft, DNS Zone Transfer 실습이 순차 언락되며 올바른 산출물 획득 시 다음 퀘스트가 활성화됨</li><li><span class="ac-bullet">✓</span> AC-2: 능동 및 타깃 스캔(SMB, MSSQL, S3, SSH, FTP, SNMP)에서 MSF 모듈 실행 및 결과 취약점 발견 시 토폴로지 맵에 실시간으로 서비스 아이콘과 플래그가 언락됨</li><li><span class="ac-bullet">✓</span> AC-3: 교재의 커스텀 루비 스캐너 모듈 템플릿(`custom_tcp_banner.rb`)이 제공되며 모듈 구동 성공 시 커스텀 배너 정보가 등록됨</li><li><span class="ac-bullet">✓</span> AC-4: 방어자 뷰에서 각 공격 기법에 대한 로그 분석 가이드와 1-클릭 방어 패치(또는 방어 명령어 예시)가 함께 표시됨</li></ul>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: 수동 정보 수집 단계에서 Whois, Netcraft, DNS Zone Transfer 실습이 순차 언락되며 올바른 산출물 획득 시 다음 퀘스트가 활성화됨</li><li><span class="ac-bullet">✓</span> AC-2: 능동 및 타깃 스캔(SMB, MSSQL, S3, SSH, FTP, SNMP)에서 MSF 모듈 실행 및 결과 취약점 발견 시 토폴로지 맵에 실시간으로 서비스 아이콘과 플래그가 언락됨</li><li><span class="ac-bullet">✓</span> AC-3: 교재의 커스텀 루비 스캐너 모듈 템플릿(`custom_tcp_banner.rb`)이 제공되며 모듈 구동 성공 시 커스텀 배너 정보가 등록됨</li><li><span class="ac-bullet">✓</span> AC-4: 공격자가 스캔 명령을 실행할 때 방어자 화면에 즉시 탐지 알림과 함께 해당 공격에 대한 원리 및 방어 패치 명령어가 연동 표시됨</li></ul>
           </div>
 
           <div class="field-group">
@@ -635,7 +641,7 @@
         <div class="step-header">
           <div class="step-title-group">
             <span class="step-num">Step 5</span>
-            <h3 class="step-title">sim-cross-platform-bootstrap</h3>
+            <h3 class="step-title">sim-host-bootstrap</h3>
           </div>
           <div class="step-meta-badges">
             
@@ -647,7 +653,7 @@
         <div class="step-body">
           <div class="field-group">
             <label class="field-label">Goal</label>
-            <p class="field-value">Windows(PowerShell), macOS/Linux(Bash)에서 단 하나의 명령어 실행으로 모든 도커 컨테이너 기동, 웹 서버 구동, 브라우저 오픈까지 완결되는 크로스 플랫폼 원클릭 런처 및 검증 스크립트 작성</p>
+            <p class="field-value">Windows 호스트 PC 환경에서 실행할 원클릭 기동 스크립트(`run-host.ps1`)를 구축하여 방화벽 포트 자동 확인/등록, Wi-Fi IP 감지, 도커 기동 및 참여자 접속 URL 콘솔 안내를 완결함</p>
           </div>
 
           <div class="field-row">
@@ -667,12 +673,12 @@
 
           <div class="field-group">
             <label class="field-label">Files (Declared Blast Radius)</label>
-            <div class="badge-wrap"><span class="badge file-badge">run.ps1</span> <span class="badge file-badge">run.sh</span> <span class="badge file-badge">cleanup.ps1</span> <span class="badge file-badge">cleanup.sh</span> <span class="badge file-badge">README.md</span> <span class="badge file-badge">docs/simulation-guide.md</span> <span class="badge file-badge">tests/launcher-syntax.test.ts</span></div>
+            <div class="badge-wrap"><span class="badge file-badge">run-host.ps1</span> <span class="badge file-badge">cleanup-host.ps1</span> <span class="badge file-badge">docs/lan-client-guide.md</span> <span class="badge file-badge">README.md</span> <span class="badge file-badge">tests/launcher-syntax.test.ts</span></div>
           </div>
 
           <div class="field-group">
             <label class="field-label">Acceptance Criteria</label>
-            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: `.\run.ps1` 및 `./run.sh` 실행 시 필수 선행 조건(Docker, Compose, Node 가용성)을 검증하고 누락 시 친절한 안내를 출력함</li><li><span class="ac-bullet">✓</span> AC-2: 도커 빌드 완료 후 브라우저가 `http://localhost:3000`으로 자동 실행됨</li><li><span class="ac-bullet">✓</span> AC-3: `.\cleanup.ps1` 및 `./cleanup.sh` 실행 시 생성된 컨테이너, 임시 네트워크 및 볼륨이 깔끔하게 정리됨</li><li><span class="ac-bullet">✓</span> AC-4: README.md 및 가이드 문서에 윈도우/맥/리눅스 환경별 실행 방법과 1시간 완주 커리큘럼이 한국어로 상세 수록됨</li></ul>
+            <ul class="checklist"><li><span class="ac-bullet">✓</span> AC-1: `run-host.ps1` 실행 시 Wi-Fi 네트워크 어댑터의 IPv4 주소를 자동으로 추출하고 포트 3000 및 2222의 Windows Defender 방화벽 인바운드 허용 상태를 점검함 (미등록 시 관리자 권한으로 자동 등록 유도)</li><li><span class="ac-bullet">✓</span> AC-2: Docker Desktop 가용성을 확인하고 `docker-compose -f docker-compose.sim.yaml up -d`를 일괄 실행하여 모든 서비스가 준비 상태가 되도록 제어함</li><li><span class="ac-bullet">✓</span> AC-3: 콘솔 화면에 공격자(`http://{IP}:3000/?role=attacker`), 방어자(`http://{IP}:3000/?role=defender`), 관제자(`http://{IP}:3000/?role=observer`) 접속 URL을 명확하게 박스 형태로 출력함</li><li><span class="ac-bullet">✓</span> AC-4: `docs/lan-client-guide.md`에 맥북, 리눅스, 윈도우 참가자가 와이파이에 연결하여 브라우저로 참여하는 상세 가이드가 한국어로 수록됨</li></ul>
           </div>
 
           <div class="field-group">

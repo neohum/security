@@ -1,0 +1,98 @@
+# ====================================================================
+# Docker Compose Overlay for Metasploit Ch3 Simulation Lab
+# Inherits / overlays lab/lab/compose.yaml (vnet: 172.28.0.0/16)
+# Exposes Windows host 0.0.0.0:3000 (web dashboard) and 0.0.0.0:2222 (kalibox ssh)
+# Adds fake-recon (172.28.0.15) and fake-s3 (172.28.0.25)
+# ====================================================================
+
+include:
+  - lab/lab/compose.yaml
+
+services:
+  # Attacker Box Overlay: expose SSH for external terminal access (LAN clients)
+  kalibox:
+    ports:
+      - "0.0.0.0:2222:22"
+
+  # Fake Reconnaissance Infrastructure Node (Whois, DNS AXFR, Netcraft)
+  fake-recon:
+    build:
+      context: ./docker/fake-recon
+      dockerfile: Dockerfile
+    image: metasploit-sim/fake-recon:latest
+    container_name: fake-recon
+    hostname: recon.megacorp.internal
+    restart: unless-stopped
+    ports:
+      - "43:43"
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "8080:8080"
+    networks:
+      vnet:
+        ipv4_address: 172.28.0.15
+
+  # Fake AWS S3 Object Storage (MinIO)
+  fake-s3:
+    image: minio/minio:latest
+    container_name: fake-s3
+    hostname: backup-s3.megacorp.internal
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - fake_s3_data:/data
+    networks:
+      vnet:
+        ipv4_address: 172.28.0.25
+
+  # Fake S3 Bucket & Confidential File Seeder
+  fake-s3-init:
+    image: minio/mc:latest
+    container_name: fake-s3-init
+    depends_on:
+      - fake-s3
+    entrypoint: >
+      /bin/sh -c "
+      chmod +x /docker/fake-s3/init-buckets.sh;
+      /docker/fake-s3/init-buckets.sh;
+      exit 0;
+      "
+    volumes:
+      - ./docker/fake-s3:/docker/fake-s3:ro
+    networks:
+      vnet:
+        ipv4_address: 172.28.0.26
+
+  # Interactive Web Dashboard Gateway (LAN Collaboration)
+  web-dashboard:
+    image: node:20-alpine
+    container_name: sim-web-dashboard
+    hostname: dashboard.megacorp.internal
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:3000:3000"
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: sh -c "if [ -f server/index.ts ]; then npx tsx server/index.ts; elif [ -f server/index.js ]; then node server/index.js; else tail -f /dev/null; fi"
+    networks:
+      vnet:
+        ipv4_address: 172.28.0.50
+
+networks:
+  vnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  kali_data:
+  msf_db:
+  fake_s3_data:

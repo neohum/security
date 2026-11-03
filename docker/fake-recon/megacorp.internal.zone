@@ -1,0 +1,43 @@
+$TTL 300
+@       IN      SOA     ns1.megacorp.internal. admin.megacorp.internal. (
+                        2026021401 ; Serial
+                        3600       ; Refresh (1 hour)
+                        600        ; Retry (10 mins)
+                        86400      ; Expire (1 day)
+                        300 )      ; Minimum TTL (5 mins)
+
+; Name Servers
+@       IN      NS      ns1.megacorp.internal.
+
+; Infrastructure Services (Fake Recon Node: 172.28.0.15)
+@               IN      A       172.28.0.15
+ns1             IN      A       172.28.0.15
+whois           IN      A       172.28.0.15
+netcraft        IN      A       172.28.0.15
+recon           IN      A       172.28.0.15
+
+; Target Linux / Web Server (Metasploitable2: 172.28.0.20)
+target-linux    IN      A       172.28.0.20
+www             IN      A       172.28.0.20
+mail            IN      A       172.28.0.20
+ftp             IN      A       172.28.0.20
+ssh             IN      A       172.28.0.20
+
+; Target Object Storage / Backup (Fake S3 MinIO: 172.28.0.25)
+backup-s3       IN      A       172.28.0.25
+s3              IN      A       172.28.0.25
+storage         IN      A       172.28.0.25
+backup          IN      A       172.28.0.25
+
+; Target Database Server (Vulnerable MSSQL 2022: 172.28.0.30)
+target-mssql    IN      A       172.28.0.30
+db-mssql        IN      A       172.28.0.30
+db              IN      A       172.28.0.30
+mssql           IN      A       172.28.0.30
+sql             IN      A       172.28.0.30
+
+; Gateway & Attacker Nodes
+gateway         IN      A       172.28.0.1
+router          IN      A       172.28.0.1
+attacker        IN      A       172.28.0.10
+kalibox         IN      A       172.28.0.10
