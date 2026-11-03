@@ -4,7 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "plan:check": "tsx scripts/loop/plan-doc.ts check",
-    "plan:compile": "tsx scripts/loop/plan-doc.ts compile"
+    "test": "npx tsx --test tests/*.test.ts",
+    "sim:start": "npx tsx server/index.ts",
+    "sim:host": "powershell -ExecutionPolicy Bypass -File .\\run-host.ps1",
+    "sim:clean": "powershell -ExecutionPolicy Bypass -File .\\cleanup-host.ps1",
+    "plan:check": "npx tsx scripts/loop/plan-doc.ts check",
+    "plan:compile": "npx tsx scripts/loop/plan-doc.ts compile",
+    "plan:html": "npx tsx scripts/loop/plan-doc.ts html",
+    "plan:web": "npx tsx scripts/loop/planner-web.ts"
   }
 }
