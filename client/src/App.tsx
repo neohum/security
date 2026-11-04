@@ -47,6 +47,11 @@ import {
   type ScoreboardPlayer,
   type AttackTraceEvent,
 } from "./components/ArenaScoreboard.ts";
+import {
+  renderTutorialSlideModalHtml,
+  TUTORIAL_SLIDES,
+  type TutorialSlide,
+} from "./components/TutorialSlides.ts";
 
 export type SimulationRole = "attacker" | "defender" | "observer" | "arena";
 export type LayoutMode = "grid" | "attacker-only" | "defender-only" | "terminal-only" | "arena";
@@ -74,6 +79,8 @@ export interface AppProps {
   flagStatus?: string;
   statusMessage?: string;
   submittedFlag?: string;
+  tutorialSlideStep?: number;
+  isTutorialSlideOpen?: boolean;
 }
 
 /**
@@ -175,6 +182,15 @@ export function renderAppHtml(props: AppProps = {}): string {
           <i class="fi fi-rr-eye mr-1.5 flex items-center justify-center leading-none"></i>
           2x2 관제 (Observer)
         </a>
+        <button
+          type="button"
+          id="btn-open-tutorial-slides"
+          class="btn-tutorial-slides inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border border-indigo-500/40 bg-indigo-950/30 text-indigo-300 hover:bg-indigo-900/50 hover:text-indigo-200 transition-colors whitespace-nowrap"
+          title="튜토리얼 단계별 설명 양방향 슬라이드 열기"
+        >
+          <i class="fi fi-rr-presentation mr-1.5 flex items-center justify-center leading-none text-indigo-400"></i>
+          <span class="font-medium">튜토리얼 슬라이드</span>
+        </button>
         <a
           href="?role=attacker"
           class="role-switch-btn inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap ${
@@ -240,7 +256,7 @@ export function renderAppHtml(props: AppProps = {}): string {
         </div>
         <!-- Right: Kali Terminal Full Height -->
         <div class="lg:col-span-5 flex flex-col min-h-0">
-          ${renderTwinTerminalHtml({ role: "attacker", className: "flex-1", activeRefTab })}
+          ${renderTwinTerminalHtml({ role: "attacker", className: "flex-1", activeRefTab: refActiveTab })}
         </div>
       </main>
     `;
@@ -254,7 +270,7 @@ export function renderAppHtml(props: AppProps = {}): string {
         </div>
         <!-- Right: Defense Terminal / Log View Full Height -->
         <div class="lg:col-span-5 flex flex-col min-h-0">
-          ${renderTwinTerminalHtml({ role: "defender", className: "flex-1", activeRefTab })}
+          ${renderTwinTerminalHtml({ role: "defender", className: "flex-1", activeRefTab: refActiveTab })}
         </div>
       </main>
     `;
@@ -298,7 +314,7 @@ export function renderAppHtml(props: AppProps = {}): string {
           </div>
           <!-- Right: Attacker Kali Terminal for Command Input (3 cols) -->
           <div class="xl:col-span-3 flex flex-col min-h-[500px]">
-            ${renderTwinTerminalHtml({ role: "attacker", className: "h-full", activeRefTab })}
+            ${renderTwinTerminalHtml({ role: "attacker", className: "h-full", activeRefTab: refActiveTab })}
           </div>
         </main>
       `;
@@ -330,7 +346,7 @@ export function renderAppHtml(props: AppProps = {}): string {
 
         <!-- Bottom Row: Twin Terminals Side-by-Side -->
         <div class="flex-1 min-h-[300px]">
-          ${renderTwinTerminalHtml({ role: "both", className: "h-full", activeRefTab })}
+          ${renderTwinTerminalHtml({ role: "both", className: "h-full", activeRefTab: refActiveTab })}
         </div>
       </main>
     `;
@@ -357,6 +373,7 @@ export function renderAppHtml(props: AppProps = {}): string {
       ${headerHtml}
       ${mainContentHtml}
       ${footerHtml}
+      ${renderTutorialSlideModalHtml(props.tutorialSlideStep || 1, props.isTutorialSlideOpen || false)}
     </div>
   `;
 }
