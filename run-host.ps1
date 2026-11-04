@@ -213,7 +213,11 @@ Write-Host "  [3] 통합 참관 대시보드 (Observer 2x2 Grid):" -ForegroundCo
 Write-Host "      http://${hostIp}:${Port}/?role=observer" -ForegroundColor White
 Write-Host "      (공격-방어 동시 관제 트윈 터미널 및 이벤트 스트림)" -ForegroundColor Gray
 Write-Host ""
-Write-Host "  [4] 외부 SSH 직접 터미널 접속 (옵션):" -ForegroundColor Green
+Write-Host "  [4] CTF 침투 경진대회 아레나 (CTF Competition Arena):" -ForegroundColor Cyan
+Write-Host "      http://${hostIp}:${Port}/arena" -ForegroundColor White
+Write-Host "      (200개 노드 가상 인터넷 전장, 실시간 점수 순위표 및 명예의 전당)" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  [5] 외부 SSH 직접 터미널 접속 (옵션):" -ForegroundColor Green
 Write-Host "      ssh -p ${SshPort} attacker@${hostIp}" -ForegroundColor White
 Write-Host "      (비밀번호: security123! 또는 kali)" -ForegroundColor Gray
 Write-Host ""

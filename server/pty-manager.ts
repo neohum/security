@@ -269,8 +269,54 @@ class MockShell extends EventEmitter implements TerminalSession {
         );
         break;
 
+      case "curl":
+        if (cmd.includes("9000") || cmd.includes("megacorp-backup") || cmd.includes("config.env") || cmd.includes("s3")) {
+          this.emitOutput(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n" +
+              "<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\r\n" +
+              "  <Name>megacorp-backup</Name>\r\n" +
+              "  <Contents><Key>config.env</Key><Size>342</Size></Contents>\r\n" +
+              "  <Contents><Key>db_passwords.txt</Key><Size>128</Size></Contents>\r\n" +
+              "</ListBucketResult>\r\n" +
+              "DB_HOST=172.28.0.30\r\n" +
+              "DB_USER=sa\r\n" +
+              "DB_PASS=Password123!\r\n" +
+              "AWS_ACCESS_KEY_ID=minioadmin\r\n" +
+              "Flag Hint: FLAG{S3_CONFIDENTIAL_LEAK}\r\n"
+          );
+        } else if (cmd.includes("8080")) {
+          this.emitOutput(
+            "HTTP/1.1 200 OK\r\n" +
+              "Server: Apache/2.2.8 (Ubuntu) DAV/2\r\n" +
+              "X-Powered-By: PHP/5.2.4-2ubuntu5.10\r\n" +
+              "Flag Hint: FLAG{netcraft_apache_server_fingerprinted}\r\n"
+          );
+        } else {
+          this.emitOutput("curl: (7) Failed to connect to host\r\n");
+        }
+        break;
+
+      case "cat":
+      case "echo":
+      case "cp":
+      case "touch":
+      case "nano":
+      case "vim":
+        if (cmd.includes("banner") || cmd.includes("custom_tcp_banner")) {
+          this.emitOutput(
+            "[+] Saved custom scanner script: custom_tcp_banner.rb\r\n" +
+              "[+] Module template loaded: Msf::Auxiliary::Scanner + Msf::Exploit::Remote::Tcp\r\n" +
+              "Flag Hint: FLAG{CUSTOM_RUBY_BANNER_GRABBED}\r\n"
+          );
+        } else {
+          this.emitOutput(`${main}: executed\r\n`);
+        }
+        break;
+
       case "mssql":
       case "sqsh":
+      case "sqlcmd":
+      case "mssqlclient.py":
         this.emitOutput(
           "[*] Connecting to 172.28.0.30:1433 with sa credentials...\r\n" +
             "[+] MSSQL Login Successful: sa:Password123!\r\n" +

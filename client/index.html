@@ -125,6 +125,13 @@
           <i class="fi fi-rr-shield-check mr-1.5 flex items-center justify-center leading-none"></i>
           방어자 (Defender)
         </a>
+        <a
+          href="?role=arena"
+          class="role-switch-btn inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap border-transparent text-zinc-400 hover:text-zinc-200"
+        >
+          <i class="fi fi-rr-trophy mr-1.5 flex items-center justify-center leading-none"></i>
+          CTF 대회 (Arena)
+        </a>
       </nav>
 
       <!-- Right Role Status Indicator -->
@@ -793,7 +800,7 @@
 
       <!-- Reference Knowledge Card Directly Below Terminal: 내부 스크롤 지원 -->
       
-    <div class="knowledge-reference-panel flex flex-col bg-[#0b0c0f] border border-zinc-800 rounded-lg p-3 text-[#e7e9ee] flex-1 min-h-[220px] max-h-[42vh] overflow-hidden mt-3">
+    <div class="knowledge-reference-panel flex flex-col bg-[#0b0c0f] border border-zinc-800 rounded-lg p-3 text-[#e7e9ee] flex-1 min-h-[220px] max-h-[46vh] overflow-hidden mt-3">
       <div class="flex items-center justify-between pb-2 border-b border-zinc-800/80 shrink-0">
         <div class="flex items-center gap-2">
           <i class="fi fi-rr-book-alt text-[#ff5d6c] flex items-center justify-center leading-none text-sm"></i>
@@ -805,6 +812,71 @@
         <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-2 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-400 whitespace-nowrap">
           제3장 인텔리전스 수집 표준
         </span>
+      </div>
+
+      <div class="flex items-center gap-1.5 p-1 bg-[#101217] rounded border border-zinc-800 shrink-0 mb-2.5">
+        <button
+          type="button"
+          class="ref-knowledge-tab inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap border-red-500/60 bg-red-950/50 text-red-300 font-semibold"
+          data-ref-tab="all"
+        >
+          <i class="fi fi-rr-apps mr-1.5 flex items-center justify-center leading-none"></i>
+          전체 커맨드 (All)
+        </button>
+        <button
+          type="button"
+          class="ref-knowledge-tab inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap border-transparent text-zinc-400 hover:text-zinc-200"
+          data-ref-tab="recon"
+        >
+          <i class="fi fi-rr-search-alt mr-1.5 flex items-center justify-center leading-none"></i>
+          기초 정찰 (Recon)
+        </button>
+        <button
+          type="button"
+          class="ref-knowledge-tab inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap border-transparent text-zinc-400 hover:text-zinc-200"
+          data-ref-tab="script"
+        >
+          <i class="fi fi-rr-file-code mr-1.5 flex items-center justify-center leading-none"></i>
+          셸 스크립트 자동화 (Scripts)
+        </button>
+      </div>
+
+      <div class="shell-script-guide-box p-3 mb-2.5 rounded border border-indigo-500/40 bg-indigo-950/20 text-[#e7e9ee] space-y-2 shrink-0 ">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center justify-center leading-none w-6 h-6 rounded border border-indigo-400/50 bg-indigo-900/50 text-indigo-300">
+              <i class="fi fi-rr-file-code flex items-center justify-center leading-none text-xs"></i>
+            </span>
+            <div>
+              <h4 class="text-xs font-bold text-indigo-200 font-sans break-keep">실전 셸 스크립트 (.sh) 작성 &amp; 복사 가이드</h4>
+              <p class="text-[10px] text-zinc-400 break-keep">터미널에서 cat/echo 리다이렉션으로 자동화 스크립트를 즉시 생성하고 실행할 수 있습니다.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              class="btn-copy-script-guide inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded border border-indigo-500/80 transition-colors whitespace-nowrap"
+              data-script-cmd="cat &lt;&lt; 'EOF' &gt; scan.sh&#10;for i in {1..200}; do&#10;  whois -h 10.10.1.$i megacorp.internal&#10;done&#10;EOF&#10;chmod +x scan.sh &amp;&amp; bash scan.sh"
+            >
+              <i class="fi fi-rr-copy mr-1.5 flex items-center justify-center leading-none"></i>원클릭 스크립트 복사
+            </button>
+            <button
+              type="button"
+              class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 rounded border border-emerald-500/50 transition-colors whitespace-nowrap"
+              data-role="attacker"
+              data-cmd="bash /root/tools/auto_pwn.sh"
+            >
+              <i class="fi fi-rr-play mr-1.5 flex items-center justify-center leading-none"></i>auto_pwn.sh 즉시 실행
+            </button>
+          </div>
+        </div>
+        <div class="p-2 rounded border border-zinc-800 bg-[#08090b] font-mono text-[11px] text-emerald-400 select-all overflow-x-auto whitespace-pre"># 1. 200 노드 대역 Whois 고속 스캔 스크립트 작성 및 실행
+cat &lt;&lt; 'EOF' &gt; scan.sh
+for i in {1..200}; do
+  whois -h 10.10.1.$i megacorp.internal
+done
+EOF
+chmod +x scan.sh &amp;&amp; bash scan.sh</div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-2 flex-1 min-h-0 overflow-y-auto pr-1">
@@ -927,6 +999,130 @@
               <i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사
             </button>
             <button type="button" class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/40 border-red-500/40 rounded border transition-colors whitespace-nowrap" data-role="attacker" data-cmd="msfconsole -q -x &quot;use auxiliary/scanner/smb/smb_version; set RHOSTS 172.28.0.20; run; exit&quot;">
+              <i class="fi fi-rr-play mr-1 flex items-center justify-center leading-none"></i>터미널 입력
+            </button>
+          </div>
+        </div>
+      </div>
+    
+      <div class="reference-item p-2.5 rounded border border-zinc-800/80 bg-[#0f1115] hover:border-zinc-700 transition-colors flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5 gap-1.5 flex-wrap">
+            <div class="flex items-center gap-1.5">
+              <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-950/30 text-cyan-300 whitespace-nowrap">
+                대역 자동화
+              </span>
+              <span class="text-xs font-semibold text-[#e7e9ee] font-sans break-keep">200개 노드 Whois 대역 자동화 스위프</span>
+            </div>
+          </div>
+          
+          <pre class="p-1.5 my-1.5 bg-[#08090b] rounded border border-zinc-800/80 text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap select-all"><code>for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done</code></pre>
+          
+          <p class="text-[11px] text-[#8a8f9c] leading-relaxed break-keep text-pretty mt-1">
+            200개 가상 인터넷 노드를 일일이 수동 검색하지 않고, Bash for 루프 원라이너 또는 파이썬 스크립트를 실행하여 10.10.1.1부터 10.10.1.200까지 고속 순회하며 10대 취약 서버를 자동 감지하고 플래그를 일괄 탈취합니다.
+          </p>
+        </div>
+
+        <div class="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-1">
+          <span class="text-[10px] text-zinc-500 font-mono">참고 커맨드 #5</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" class="btn-copy-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors whitespace-nowrap" data-cmd="for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done">
+              <i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사
+            </button>
+            <button type="button" class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/40 border-red-500/40 rounded border transition-colors whitespace-nowrap" data-role="attacker" data-cmd="for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done">
+              <i class="fi fi-rr-play mr-1 flex items-center justify-center leading-none"></i>터미널 입력
+            </button>
+          </div>
+        </div>
+      </div>
+    
+      <div class="reference-item p-2.5 rounded border border-zinc-800/80 bg-[#0f1115] hover:border-zinc-700 transition-colors flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5 gap-1.5 flex-wrap">
+            <div class="flex items-center gap-1.5">
+              <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-950/30 text-amber-300 whitespace-nowrap">
+                스크립트 작성
+              </span>
+              <span class="text-xs font-semibold text-[#e7e9ee] font-sans break-keep">나만의 셸 스크립트 (.sh) 생성 및 저장</span>
+            </div>
+          </div>
+          
+          <pre class="p-1.5 my-1.5 bg-[#08090b] rounded border border-zinc-800/80 text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap select-all"><code>echo 'for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done' > scan.sh</code></pre>
+          
+          <p class="text-[11px] text-[#8a8f9c] leading-relaxed break-keep text-pretty mt-1">
+            echo 리다이렉션 또는 cat EOF를 사용해 터미널 내부에서 자신만의 정찰/침투 셸 스크립트를 파일로 생성하고, 'chmod +x scan.sh; ./scan.sh' 또는 'bash scan.sh'로 즉시 실행할 수 있습니다.
+          </p>
+        </div>
+
+        <div class="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-1">
+          <span class="text-[10px] text-zinc-500 font-mono">참고 커맨드 #6</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" class="btn-copy-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors whitespace-nowrap" data-cmd="echo 'for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done' > scan.sh">
+              <i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사
+            </button>
+            <button type="button" class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/40 border-red-500/40 rounded border transition-colors whitespace-nowrap" data-role="attacker" data-cmd="echo 'for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done' > scan.sh">
+              <i class="fi fi-rr-play mr-1 flex items-center justify-center leading-none"></i>터미널 입력
+            </button>
+          </div>
+        </div>
+      </div>
+    
+      <div class="reference-item p-2.5 rounded border border-zinc-800/80 bg-[#0f1115] hover:border-zinc-700 transition-colors flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5 gap-1.5 flex-wrap">
+            <div class="flex items-center gap-1.5">
+              <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-1.5 py-0.5 rounded border border-indigo-500/40 bg-indigo-950/30 text-indigo-300 whitespace-nowrap">
+                종합 침투 .sh
+              </span>
+              <span class="text-xs font-semibold text-[#e7e9ee] font-sans break-keep">200개 노드 6대 분야 전수 셸 스크립트 실행</span>
+            </div>
+          </div>
+          
+          <pre class="p-1.5 my-1.5 bg-[#08090b] rounded border border-zinc-800/80 text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap select-all"><code>bash /root/tools/auto_pwn.sh</code></pre>
+          
+          <p class="text-[11px] text-[#8a8f9c] leading-relaxed break-keep text-pretty mt-1">
+            Whois, DNS-AXFR, Nmap, S3 등 200개 가상 인터넷 노드의 모든 취약점을 일괄 순회하여 대량의 점수를 단숨에 획득하는 실전 자동화 셸 스크립트입니다.
+          </p>
+        </div>
+
+        <div class="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-1">
+          <span class="text-[10px] text-zinc-500 font-mono">참고 커맨드 #7</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" class="btn-copy-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors whitespace-nowrap" data-cmd="bash /root/tools/auto_pwn.sh">
+              <i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사
+            </button>
+            <button type="button" class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/40 border-red-500/40 rounded border transition-colors whitespace-nowrap" data-role="attacker" data-cmd="bash /root/tools/auto_pwn.sh">
+              <i class="fi fi-rr-play mr-1 flex items-center justify-center leading-none"></i>터미널 입력
+            </button>
+          </div>
+        </div>
+      </div>
+    
+      <div class="reference-item p-2.5 rounded border border-zinc-800/80 bg-[#0f1115] hover:border-zinc-700 transition-colors flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5 gap-1.5 flex-wrap">
+            <div class="flex items-center gap-1.5">
+              <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-1.5 py-0.5 rounded border border-emerald-500/40 bg-emerald-950/30 text-emerald-300 whitespace-nowrap">
+                파이썬 툴킷
+              </span>
+              <span class="text-xs font-semibold text-[#e7e9ee] font-sans break-keep">파이썬 일괄 정찰 툴킷 실행</span>
+            </div>
+          </div>
+          
+          <pre class="p-1.5 my-1.5 bg-[#08090b] rounded border border-zinc-800/80 text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap select-all"><code>python3 /root/tools/whois_sweep.py</code></pre>
+          
+          <p class="text-[11px] text-[#8a8f9c] leading-relaxed break-keep text-pretty mt-1">
+            칼리 터미널의 /root/tools/ 디렉터리에 제공되는 whois_sweep.py, axfr_sweep.sh, nmap_sweep.py를 실행하거나 직접 스크립트를 작성하여 200개 대역 전체를 1초 만에 자동 전수 스캔합니다.
+          </p>
+        </div>
+
+        <div class="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-1">
+          <span class="text-[10px] text-zinc-500 font-mono">참고 커맨드 #8</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" class="btn-copy-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors whitespace-nowrap" data-cmd="python3 /root/tools/whois_sweep.py">
+              <i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사
+            </button>
+            <button type="button" class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/40 border-red-500/40 rounded border transition-colors whitespace-nowrap" data-role="attacker" data-cmd="python3 /root/tools/whois_sweep.py">
               <i class="fi fi-rr-play mr-1 flex items-center justify-center leading-none"></i>터미널 입력
             </button>
           </div>
@@ -1153,9 +1349,12 @@
     import { CH3_MISSIONS, evaluateSubmittedFlag, evaluateTerminalOutput } from './src/components/AttackerDashboard.js';
     import { INITIAL_PACKET_ALERTS, INITIAL_PATCH_RECOMMENDATIONS } from './src/components/DefenderDashboard.js';
     import { INITIAL_TOPOLOGY_NODES } from './src/components/TopologyRadar.js';
+    import { INITIAL_LOBBY_PARTICIPANTS, DEFAULT_MATCH_CONFIG } from './src/components/ArenaLobby.js';
+    import { INITIAL_200_NODES } from './src/components/MeshRadar200.js';
+    import { INITIAL_SCOREBOARD_PLAYERS, INITIAL_ATTACK_TRACES } from './src/components/ArenaScoreboard.js';
 
     // Application state store
-    let currentRole = parseRoleFromUrl(window.location.search);
+    let currentRole = parseRoleFromUrl(window.location.search || window.location.pathname);
     let missionsState = JSON.parse(JSON.stringify(CH3_MISSIONS));
     let alertsState = JSON.parse(JSON.stringify(INITIAL_PACKET_ALERTS));
     let patchesState = JSON.parse(JSON.stringify(INITIAL_PATCH_RECOMMENDATIONS));
@@ -1165,6 +1364,20 @@
     let flagStatus = 'idle';
     let statusMessage = '';
     let submittedFlag = '';
+
+    // Arena State
+    let arenaStatus = 'waiting';
+    let arenaRemainingSeconds = 900;
+    let arenaCountdown = 5;
+    let arenaParticipants = JSON.parse(JSON.stringify(INITIAL_LOBBY_PARTICIPANTS));
+    let arenaPlayers = JSON.parse(JSON.stringify(INITIAL_SCOREBOARD_PLAYERS));
+    let arenaTraces = JSON.parse(JSON.stringify(INITIAL_ATTACK_TRACES));
+    let arenaNodes = JSON.parse(JSON.stringify(INITIAL_200_NODES));
+    let arenaActiveFilter = 'all';
+    let arenaSelectedNodeId = arenaNodes[41]?.id || arenaNodes[0]?.id;
+    let refActiveTab = 'all';
+    let myPlayerId = 'p-host';
+    let arenaWs = null;
 
     // Re-render when role or state changes
     function render() {
@@ -1182,6 +1395,16 @@
         submittedFlag,
         flagStatus,
         statusMessage,
+        arenaStatus,
+        remainingSeconds: arenaRemainingSeconds,
+        countdown: arenaCountdown,
+        arenaParticipants,
+        arenaPlayers,
+        arenaTraces,
+        arenaNodes,
+        arenaActiveFilter,
+        arenaSelectedNodeId,
+        refActiveTab,
       });
 
       attachEventListeners();
@@ -1198,10 +1421,10 @@
       if (!container || container.getAttribute('data-cmd-bound')) return;
       container.setAttribute('data-cmd-bound', 'true');
 
-      let lastExecutedCmd = '';
-
       function checkAndApplyAutoEvaluation(cmd, outputText) {
         if (role !== 'attacker') return;
+
+        // 1. Evaluate for tutorial mission
         const evalRes = evaluateTerminalOutput(cmd, outputText, missionsState);
         if (evalRes && evalRes.matched && evalRes.mission) {
           missionsState = evalRes.updatedMissions;
@@ -1228,21 +1451,38 @@
             if (node) node.status = 'compromised';
           }
 
-          // Advance active mission to next unsolved
           const nextUnsolved = missionsState.find(m => !m.solved);
           if (nextUnsolved) {
             activeMissionId = nextUnsolved.id;
           }
 
-          // Append celebration log inside terminal
           const victoryLine = document.createElement('div');
           victoryLine.className = 'font-mono text-xs text-emerald-400 font-bold py-1.5 my-1.5 px-2 rounded border border-emerald-500/50 bg-emerald-950/40 break-keep';
           victoryLine.textContent = '[+] 🎯 [퀘스트 자동 완료] ' + evalRes.mission.title + ' (+' + evalRes.mission.points + ' PT) 획득! (현재 총점: ' + evalRes.totalScore + '/600 PT)';
           container.insertBefore(victoryLine, promptRow);
           container.scrollTop = container.scrollHeight;
 
-          // Re-render UI to update mission list badges, score pill, radar nodes
           setTimeout(() => render(), 400);
+        }
+
+        // 2. Evaluate against Arena 200 nodes if in arena mode or arena active
+        if (arenaStatus === 'active') {
+          fetch('/api/arena/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId: myPlayerId, command: cmd, stdout: outputText }),
+          })
+            .then(res => res.json())
+            .then(outcome => {
+              if (outcome && outcome.success && outcome.event) {
+                const arenaNotice = document.createElement('div');
+                arenaNotice.className = 'font-mono text-xs text-amber-300 font-bold py-1.5 my-1.5 px-2 rounded border border-amber-500/50 bg-amber-950/40 break-keep';
+                arenaNotice.textContent = '[+] 🏆 [아레나 탈취 성공] ' + outcome.event.ip + ' (' + outcome.event.category + ') 장악! (+' + outcome.pointsAwarded + ' PT' + (outcome.isFirstBlood ? ' FIRST BLOOD!' : '') + ')';
+                container.insertBefore(arenaNotice, promptRow);
+                container.scrollTop = container.scrollHeight;
+              }
+            })
+            .catch(() => {});
         }
       }
 
@@ -1258,141 +1498,123 @@
       input.className = 'cmd-line-input flex-1 bg-transparent border-none outline-none text-[#e7e9ee] font-mono text-xs';
       input.placeholder = role === 'attacker' ? "명령어 입력 (예: whois -h 172.28.0.15 megacorp.internal, dig axfr ..., nmap ...)" : "방어 명령어 입력 (예: netstat -tuln, iptables -L)";
       input.autocomplete = 'off';
-      input.spellcheck = false;
 
       promptRow.appendChild(promptLabel);
       promptRow.appendChild(input);
       container.appendChild(promptRow);
 
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${location.host}/ws/terminal/${role}?mock=true`;
-      let ws = null;
-
-      try {
-        ws = new WebSocket(wsUrl);
-        ws.onopen = () => {
-          appendLog(container, `[32m[+] ${role.toUpperCase()} 실시간 PTY 게이트웨이에 연결되었습니다.[0m`);
-        };
-        ws.onmessage = (event) => {
-          appendLog(container, event.data);
-          checkAndApplyAutoEvaluation(lastExecutedCmd, event.data);
-        };
-      } catch (err) {
-        console.warn('WebSocket connection deferred:', err);
-      }
-
-      function appendLog(target, text) {
-        const line = document.createElement('div');
-        line.className = 'font-mono text-xs leading-relaxed text-[#e7e9ee] whitespace-pre-wrap';
-        // strip ansi codes for clean display
-        line.textContent = text.replace(/\x1b\[[0-9;]*m/g, '');
-        container.insertBefore(line, promptRow);
-        container.scrollTop = container.scrollHeight;
-      }
-
-      input.addEventListener('keydown', (e) => {
+      input.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter') {
           const cmd = input.value.trim();
           if (!cmd) return;
           input.value = '';
-          lastExecutedCmd = cmd;
 
-          appendLog(container, `${promptLabel.textContent}${cmd}`);
+          const userEcho = document.createElement('div');
+          userEcho.className = 'font-mono text-xs text-zinc-300';
+          userEcho.textContent = (role === 'attacker' ? 'root@kalibox:~# ' : 'secops@metasploitable2:~$ ') + cmd;
+          container.insertBefore(userEcho, promptRow);
 
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(cmd + '\r');
-          } else {
-            // Local fallback handler
-            handleLocalMockCommand(cmd, role, (out) => appendLog(container, out), checkAndApplyAutoEvaluation);
+          const loading = document.createElement('div');
+          loading.className = 'font-mono text-xs text-zinc-500 italic';
+          loading.textContent = '[*] 명령 실행 중...';
+          container.insertBefore(loading, promptRow);
+          container.scrollTop = container.scrollHeight;
+
+          try {
+            const res = await fetch('/api/missions/evaluate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ command: cmd, role }),
+            });
+            const data = await res.json();
+            loading.remove();
+
+            let outText = '';
+            if (Array.isArray(data) && data.length > 0) {
+              outText = data.map(d => d.message).join('\n');
+            } else if (data.message) {
+              outText = data.message;
+            } else {
+              outText = '[*] Command completed with code 0.';
+            }
+
+            const outDiv = document.createElement('div');
+            outDiv.className = 'font-mono text-xs text-zinc-400 whitespace-pre-wrap py-1';
+            outDiv.textContent = outText;
+            container.insertBefore(outDiv, promptRow);
+
+            checkAndApplyAutoEvaluation(cmd, outText);
+          } catch {
+            loading.textContent = '[-] 통신 오류 또는 PTY 응답 대기 중';
           }
+          container.scrollTop = container.scrollHeight;
         }
       });
     }
 
-    function handleLocalMockCommand(cmd, role, output, checkAutoEval) {
-      const lower = cmd.toLowerCase();
-      let resText = '';
-
-      if (lower.includes('whois')) {
-        resText = `% MegaCorp Internal Whois Database Server\nDomain: megacorp.internal\nRegistrant: MegaCorp Technologies, Inc.\nTech Email: admin@megacorp.internal\nCIDR: 172.28.0.0/16\nStatus: ACTIVE\nFLAG: FLAG{WHOIS_RECON_SUCCESS}`;
-      } else if (lower.includes('axfr') || lower.includes('dig')) {
-        resText = `;; <<>> DiG 9.18.1 <<>> axfr @172.28.0.15 megacorp.internal\nmegacorp.internal. IN SOA ns1.megacorp.internal.\nns1.megacorp.internal. IN A 172.28.0.15\ntarget-linux.megacorp.internal. IN A 172.28.0.20\nbackup-s3.megacorp.internal. IN A 172.28.0.25\ndb-mssql.megacorp.internal. IN A 172.28.0.30\nFLAG: FLAG{ZONE_TRANSFER_EXPOSED}`;
-      } else if (lower.includes('nmap') || lower.includes('db_nmap')) {
-        resText = `Starting Nmap 7.94 ( https://nmap.org )\nNmap scan report for 172.28.0.20\nPORT     STATE SERVICE\n21/tcp   open  ftp\n22/tcp   open  ssh\n80/tcp   open  http\n445/tcp  open  netbios-ssn\nNmap scan report for 172.28.0.30\nPORT     STATE SERVICE\n1433/tcp open  ms-sql-s\nFLAG: FLAG{MSF_DB_NMAP_RECORDED}`;
-      } else if (lower.includes('mssql')) {
-        resText = `[*] 172.28.0.30:1433 - Starting MSSQL login brute-force...\n[+] 172.28.0.30:1433 - MSSQL - Login Successful: sa:Password123!\n[*] Active session established on MSSQL Server 2019\nFLAG: FLAG{MSSQL_SA_PWNED}`;
-      } else if (lower.includes('s3') || lower.includes('aws') || lower.includes('minio')) {
-        resText = `download: s3://megacorp-backup/config.env to -\nDB_HOST=172.28.0.30\nDB_USER=sa\nDB_PASS=Password123!\nAWS_ACCESS_KEY_ID=minioadmin\nFLAG: FLAG{S3_CONFIDENTIAL_LEAK}`;
-      } else if (lower.includes('custom_tcp_banner') || lower.includes('custom') || lower.includes('banner')) {
-        resText = `[*] Running custom TCP banner scanner against 172.28.0.20...\n[+] 172.28.0.20:21 - Banner: 220 (vsFTPd 2.3.4)\n[*] Module execution completed.\nFLAG: FLAG{CUSTOM_RUBY_BANNER_GRABBED}`;
-      } else {
-        resText = `[*] Executed: ${cmd}\n[+] Ready for next reconnaissance command.`;
-      }
-
-      output(resText);
-      if (typeof checkAutoEval === 'function') {
-        checkAutoEval(cmd, resText);
-      }
-    }
-
     function attachEventListeners() {
-      // Role badge clicks to switch roles
-      document.querySelectorAll('.role-switcher-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const r = btn.getAttribute('data-role');
-          if (r) {
-            currentRole = r;
-            const url = new URL(window.location);
-            url.searchParams.set('role', r);
-            window.history.pushState({}, '', url);
+      // Role switch buttons
+      document.querySelectorAll('.role-switch-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const href = btn.getAttribute('href');
+          currentRole = parseRoleFromUrl(href);
+          history.pushState(null, '', href);
+          render();
+        });
+      });
+
+      // Mission list click
+      document.querySelectorAll('.mission-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const mId = card.getAttribute('data-mission-id');
+          if (mId) {
+            activeMissionId = mId;
+            const targetMission = missionsState.find(m => m.id === mId);
+            if (targetMission) {
+              const matchedNode = nodesState.find(n => n.ip === targetMission.targetIp);
+              if (matchedNode) selectedNodeId = matchedNode.id;
+            }
             render();
           }
         });
       });
 
-      // Mission clicks
-      document.querySelectorAll('.mission-item').forEach(el => {
-        el.addEventListener('click', () => {
-          const mid = el.getAttribute('data-mission-id');
-          if (mid) {
-            activeMissionId = mid;
-            render();
-          }
-        });
-      });
-
-      // Radar node clicks
-      document.querySelectorAll('.radar-node-group').forEach(el => {
-        el.addEventListener('click', () => {
-          const nid = el.getAttribute('data-node-id');
-          if (nid) {
-            selectedNodeId = nid;
-            render();
-          }
-        });
-      });
-
-      // Copy hint command button
+      // Copy command button
       document.querySelectorAll('.btn-copy-command').forEach(btn => {
         btn.addEventListener('click', () => {
-          const pre = btn.closest('.p-2\.5')?.querySelector('pre code');
-          if (pre) {
-            navigator.clipboard.writeText(pre.textContent.trim());
+          const activeMission = missionsState.find(m => m.id === activeMissionId);
+          if (activeMission) {
+            navigator.clipboard.writeText(activeMission.hintCommand);
             btn.innerHTML = '<span class="text-emerald-400">복사됨!</span>';
-            setTimeout(() => { btn.innerHTML = '<i class="fi fi-rr-copy mr-1"></i>복사'; }, 1500);
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사';
+            }, 1500);
           }
         });
       });
 
-      // Reference Knowledge Copy Button
-      document.querySelectorAll('.btn-copy-ref-cmd').forEach(btn => {
+      // Reference Knowledge Tab Switching
+      document.querySelectorAll('.ref-knowledge-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          const targetTab = tab.getAttribute('data-ref-tab');
+          if (targetTab) {
+            refActiveTab = targetTab;
+            render();
+          }
+        });
+      });
+
+      // Shell Script Copy Guide Button
+      document.querySelectorAll('.btn-copy-script-guide').forEach(btn => {
         btn.addEventListener('click', () => {
-          const cmd = btn.getAttribute('data-cmd');
+          const cmd = btn.getAttribute('data-script-cmd') || btn.getAttribute('data-cmd');
           if (cmd) {
             navigator.clipboard.writeText(cmd);
-            const orig = btn.innerHTML;
-            btn.innerHTML = '<span class="text-emerald-400">복사됨!</span>';
-            setTimeout(() => { btn.innerHTML = orig; }, 1500);
+            btn.innerHTML = '<span class="text-emerald-400">복사 완료!</span>';
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fi fi-rr-copy mr-1.5 flex items-center justify-center leading-none"></i>원클릭 스크립트 복사';
+            }, 1500);
           }
         });
       });
@@ -1415,34 +1637,142 @@
         });
       });
 
-      // Flag submit
-      const submitBtn = document.querySelector('.btn-submit-flag');
-      const flagInput = document.querySelector('.flag-input');
-      if (submitBtn && flagInput) {
-        submitBtn.addEventListener('click', () => {
-          const val = flagInput.value.trim();
-          submittedFlag = val;
-          const result = evaluateSubmittedFlag(val, missionsState);
-          missionsState = result.updatedMissions;
-          flagStatus = result.success ? 'success' : 'error';
-          statusMessage = result.message;
-
-          if (result.success) {
-            // Unlock topology nodes
-            if (val.includes('MSSQL')) {
-              const node = nodesState.find(n => n.id === 'vuln-mssql');
-              if (node) node.status = 'compromised';
-            } else if (val.includes('ZONE_TRANSFER')) {
-              const node = nodesState.find(n => n.id === 'fake-recon');
-              if (node) node.status = 'probed';
-            } else if (val.includes('S3')) {
-              const node = nodesState.find(n => n.id === 'fake-s3');
-              if (node) node.status = 'compromised';
-            }
+      // Copy Single Reference Command
+      document.querySelectorAll('.btn-copy-ref-cmd').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cmd = btn.getAttribute('data-cmd');
+          if (cmd) {
+            navigator.clipboard.writeText(cmd);
+            btn.innerHTML = '<span class="text-emerald-400">복사됨!</span>';
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사';
+            }, 1500);
           }
+        });
+      });
+
+      // Arena: Start Match Button
+      const startBtn = document.querySelector('.btn-start-match');
+      if (startBtn) {
+        startBtn.addEventListener('click', () => {
+          arenaStatus = 'starting';
+          render();
+
+          // Start countdown
+          let cd = 3;
+          const cdTimer = setInterval(() => {
+            cd--;
+            arenaCountdown = cd;
+            if (cd <= 0) {
+              clearInterval(cdTimer);
+              arenaStatus = 'active';
+              fetch('/api/arena/start', { method: 'POST' }).catch(() => {});
+              render();
+            } else {
+              render();
+            }
+          }, 1000);
+        });
+      }
+
+      // Arena: Back to Lobby
+      const backLobbyBtn = document.querySelector('.btn-back-to-lobby');
+      if (backLobbyBtn) {
+        backLobbyBtn.addEventListener('click', () => {
+          arenaStatus = 'waiting';
+          fetch('/api/arena/reset', { method: 'POST' }).catch(() => {});
           render();
         });
       }
+
+      // Arena: Copy Lobby URL
+      const copyLobbyBtn = document.querySelector('.btn-copy-lobby-url');
+      if (copyLobbyBtn) {
+        copyLobbyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(location.origin + '/arena');
+          copyLobbyBtn.innerHTML = '<span class="text-emerald-400">복사 완료!</span>';
+          setTimeout(() => {
+            copyLobbyBtn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>초대 링크 복사';
+          }, 1500);
+        });
+      }
+
+      // Arena: Copy SSH Command
+      const copySshBtn = document.querySelector('.btn-copy-ssh-cmd');
+      if (copySshBtn) {
+        copySshBtn.addEventListener('click', () => {
+          const cmd = copySshBtn.getAttribute('data-cmd') || 'ssh -p 2222 player@' + location.hostname;
+          navigator.clipboard.writeText(cmd);
+          copySshBtn.innerHTML = '<span class="text-emerald-400">복사 완료!</span>';
+          setTimeout(() => {
+            copySshBtn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사';
+          }, 1500);
+        });
+      }
+
+      // Arena: Nickname Input Event
+      const nickInput = document.querySelector('.input-nickname');
+      if (nickInput) {
+        nickInput.addEventListener('input', (e) => {
+          const val = e.target.value;
+          const me = arenaParticipants.find(p => p.id === myPlayerId);
+          if (me) me.nickname = val || 'RedCommander';
+        });
+      }
+
+      // Arena: Toggle Ready Button
+      const toggleReadyBtn = document.querySelector('.btn-toggle-ready');
+      if (toggleReadyBtn) {
+        toggleReadyBtn.addEventListener('click', () => {
+          const me = arenaParticipants.find(p => p.id === myPlayerId);
+          if (me) {
+            me.isReady = !me.isReady;
+            render();
+          }
+        });
+      }
+
+      // Arena: Avatar select
+      document.querySelectorAll('.avatar-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const avId = btn.getAttribute('data-avatar-id');
+          const me = arenaParticipants.find(p => p.id === myPlayerId);
+          if (me && avId) {
+            const avatarMap = {
+              skull: { label: '해커', icon: 'fi-rr-skull' },
+              ghost: { label: '고스트', icon: 'fi-rr-ghost' },
+              'user-secret': { label: '닌자', icon: 'fi-rr-user-secret' },
+              bug: { label: '바이퍼', icon: 'fi-rr-bug' },
+              bolt: { label: '볼트', icon: 'fi-rr-bolt' },
+              shield: { label: '가디언', icon: 'fi-rr-shield' },
+            };
+            if (avatarMap[avId]) {
+              me.avatar = avatarMap[avId].icon;
+              me.avatarLabel = avatarMap[avId].label;
+              render();
+            }
+          }
+        });
+      });
+
+      // Arena: Mesh Filter Tabs
+      document.querySelectorAll('.mesh-filter-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          arenaActiveFilter = tab.getAttribute('data-filter') || 'all';
+          render();
+        });
+      });
+
+      // Arena: Mesh Node Cell Click
+      document.querySelectorAll('.mesh-node-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const nId = cell.getAttribute('data-node-id');
+          if (nId) {
+            arenaSelectedNodeId = nId;
+            render();
+          }
+        });
+      });
 
       // One-click patch buttons
       document.querySelectorAll('.btn-apply-patch').forEach(btn => {
@@ -1495,9 +1825,51 @@
       } catch {}
     }
 
+    function initArenaStream() {
+      try {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        arenaWs = new WebSocket(`${protocol}//${location.host}/ws/arena`);
+        arenaWs.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.type === 'init' && data.state) {
+              arenaStatus = data.state.lobbyState;
+              arenaRemainingSeconds = data.state.timeRemaining;
+              if (data.state.players && data.state.players.length > 0) {
+                arenaPlayers = data.state.leaderboard;
+              }
+              if (data.state.recentAttacks && data.state.recentAttacks.length > 0) {
+                arenaTraces = data.state.recentAttacks;
+              }
+              render();
+            } else if (data.type === 'match:tick') {
+              arenaRemainingSeconds = data.remainingSeconds;
+              render();
+            } else if (data.type === 'match:started') {
+              arenaStatus = 'active';
+              arenaRemainingSeconds = data.remainingSeconds;
+              render();
+            } else if (data.type === 'match:finished') {
+              arenaStatus = 'finished';
+              if (data.leaderboard) arenaPlayers = data.leaderboard;
+              render();
+            } else if (data.type === 'attack:compromised') {
+              if (data.event) arenaTraces.unshift(data.event);
+              if (data.leaderboard) arenaPlayers = data.leaderboard;
+              render();
+            } else if (data.type === 'player:joined') {
+              if (data.players) arenaParticipants = data.players;
+              render();
+            }
+          } catch {}
+        };
+      } catch {}
+    }
+
     // Run render immediately
     render();
     initEventStream();
+    initArenaStream();
   </script>
 </body>
 </html>

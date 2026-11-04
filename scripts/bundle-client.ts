@@ -5,12 +5,15 @@ import { renderAppHtml, parseRoleFromUrl } from "../client/src/App.js";
 import { CH3_MISSIONS } from "../client/src/components/AttackerDashboard.js";
 import { INITIAL_PACKET_ALERTS, INITIAL_PATCH_RECOMMENDATIONS } from "../client/src/components/DefenderDashboard.js";
 import { INITIAL_TOPOLOGY_NODES } from "../client/src/components/TopologyRadar.js";
+import { INITIAL_LOBBY_PARTICIPANTS, DEFAULT_MATCH_CONFIG } from "../client/src/components/ArenaLobby.js";
+import { INITIAL_200_NODES } from "../client/src/components/MeshRadar200.js";
+import { INITIAL_SCOREBOARD_PLAYERS, INITIAL_ATTACK_TRACES } from "../client/src/components/ArenaScoreboard.js";
 
 // Read all client modules
 const ROOT = process.cwd();
 const clientDir = path.resolve(ROOT, "client");
 
-// We generate the initial static HTML for observer/attacker/defender
+// Generate initial static HTML
 const initialHtml = renderAppHtml({
   role: "observer",
   missions: CH3_MISSIONS,
@@ -19,6 +22,15 @@ const initialHtml = renderAppHtml({
   nodes: INITIAL_TOPOLOGY_NODES,
   activeMissionId: CH3_MISSIONS[0]?.id,
   selectedNodeId: INITIAL_TOPOLOGY_NODES[1]?.id,
+  arenaStatus: "waiting",
+  remainingSeconds: 900,
+  arenaParticipants: INITIAL_LOBBY_PARTICIPANTS,
+  arenaPlayers: INITIAL_SCOREBOARD_PLAYERS,
+  arenaTraces: INITIAL_ATTACK_TRACES,
+  arenaNodes: INITIAL_200_NODES,
+  arenaActiveFilter: "all",
+  arenaSelectedNodeId: INITIAL_200_NODES[41]?.id || INITIAL_200_NODES[0]?.id,
+  refActiveTab: "all",
 });
 
 const bundleHtml = `<!DOCTYPE html>
@@ -113,9 +125,12 @@ const bundleHtml = `<!DOCTYPE html>
     import { CH3_MISSIONS, evaluateSubmittedFlag, evaluateTerminalOutput } from './src/components/AttackerDashboard.js';
     import { INITIAL_PACKET_ALERTS, INITIAL_PATCH_RECOMMENDATIONS } from './src/components/DefenderDashboard.js';
     import { INITIAL_TOPOLOGY_NODES } from './src/components/TopologyRadar.js';
+    import { INITIAL_LOBBY_PARTICIPANTS, DEFAULT_MATCH_CONFIG } from './src/components/ArenaLobby.js';
+    import { INITIAL_200_NODES } from './src/components/MeshRadar200.js';
+    import { INITIAL_SCOREBOARD_PLAYERS, INITIAL_ATTACK_TRACES } from './src/components/ArenaScoreboard.js';
 
     // Application state store
-    let currentRole = parseRoleFromUrl(window.location.search);
+    let currentRole = parseRoleFromUrl(window.location.search || window.location.pathname);
     let missionsState = JSON.parse(JSON.stringify(CH3_MISSIONS));
     let alertsState = JSON.parse(JSON.stringify(INITIAL_PACKET_ALERTS));
     let patchesState = JSON.parse(JSON.stringify(INITIAL_PATCH_RECOMMENDATIONS));
@@ -125,6 +140,20 @@ const bundleHtml = `<!DOCTYPE html>
     let flagStatus = 'idle';
     let statusMessage = '';
     let submittedFlag = '';
+
+    // Arena State
+    let arenaStatus = 'waiting';
+    let arenaRemainingSeconds = 900;
+    let arenaCountdown = 5;
+    let arenaParticipants = JSON.parse(JSON.stringify(INITIAL_LOBBY_PARTICIPANTS));
+    let arenaPlayers = JSON.parse(JSON.stringify(INITIAL_SCOREBOARD_PLAYERS));
+    let arenaTraces = JSON.parse(JSON.stringify(INITIAL_ATTACK_TRACES));
+    let arenaNodes = JSON.parse(JSON.stringify(INITIAL_200_NODES));
+    let arenaActiveFilter = 'all';
+    let arenaSelectedNodeId = arenaNodes[41]?.id || arenaNodes[0]?.id;
+    let refActiveTab = 'all';
+    let myPlayerId = 'p-host';
+    let arenaWs = null;
 
     // Re-render when role or state changes
     function render() {
@@ -142,6 +171,16 @@ const bundleHtml = `<!DOCTYPE html>
         submittedFlag,
         flagStatus,
         statusMessage,
+        arenaStatus,
+        remainingSeconds: arenaRemainingSeconds,
+        countdown: arenaCountdown,
+        arenaParticipants,
+        arenaPlayers,
+        arenaTraces,
+        arenaNodes,
+        arenaActiveFilter,
+        arenaSelectedNodeId,
+        refActiveTab,
       });
 
       attachEventListeners();
@@ -158,10 +197,10 @@ const bundleHtml = `<!DOCTYPE html>
       if (!container || container.getAttribute('data-cmd-bound')) return;
       container.setAttribute('data-cmd-bound', 'true');
 
-      let lastExecutedCmd = '';
-
       function checkAndApplyAutoEvaluation(cmd, outputText) {
         if (role !== 'attacker') return;
+
+        // 1. Evaluate for tutorial mission
         const evalRes = evaluateTerminalOutput(cmd, outputText, missionsState);
         if (evalRes && evalRes.matched && evalRes.mission) {
           missionsState = evalRes.updatedMissions;
@@ -188,21 +227,38 @@ const bundleHtml = `<!DOCTYPE html>
             if (node) node.status = 'compromised';
           }
 
-          // Advance active mission to next unsolved
           const nextUnsolved = missionsState.find(m => !m.solved);
           if (nextUnsolved) {
             activeMissionId = nextUnsolved.id;
           }
 
-          // Append celebration log inside terminal
           const victoryLine = document.createElement('div');
           victoryLine.className = 'font-mono text-xs text-emerald-400 font-bold py-1.5 my-1.5 px-2 rounded border border-emerald-500/50 bg-emerald-950/40 break-keep';
           victoryLine.textContent = '[+] 🎯 [퀘스트 자동 완료] ' + evalRes.mission.title + ' (+' + evalRes.mission.points + ' PT) 획득! (현재 총점: ' + evalRes.totalScore + '/600 PT)';
           container.insertBefore(victoryLine, promptRow);
           container.scrollTop = container.scrollHeight;
 
-          // Re-render UI to update mission list badges, score pill, radar nodes
           setTimeout(() => render(), 400);
+        }
+
+        // 2. Evaluate against Arena 200 nodes if in arena mode or arena active
+        if (arenaStatus === 'active') {
+          fetch('/api/arena/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId: myPlayerId, command: cmd, stdout: outputText }),
+          })
+            .then(res => res.json())
+            .then(outcome => {
+              if (outcome && outcome.success && outcome.event) {
+                const arenaNotice = document.createElement('div');
+                arenaNotice.className = 'font-mono text-xs text-amber-300 font-bold py-1.5 my-1.5 px-2 rounded border border-amber-500/50 bg-amber-950/40 break-keep';
+                arenaNotice.textContent = '[+] 🏆 [아레나 탈취 성공] ' + outcome.event.ip + ' (' + outcome.event.category + ') 장악! (+' + outcome.pointsAwarded + ' PT' + (outcome.isFirstBlood ? ' FIRST BLOOD!' : '') + ')';
+                container.insertBefore(arenaNotice, promptRow);
+                container.scrollTop = container.scrollHeight;
+              }
+            })
+            .catch(() => {});
         }
       }
 
@@ -218,141 +274,123 @@ const bundleHtml = `<!DOCTYPE html>
       input.className = 'cmd-line-input flex-1 bg-transparent border-none outline-none text-[#e7e9ee] font-mono text-xs';
       input.placeholder = role === 'attacker' ? "명령어 입력 (예: whois -h 172.28.0.15 megacorp.internal, dig axfr ..., nmap ...)" : "방어 명령어 입력 (예: netstat -tuln, iptables -L)";
       input.autocomplete = 'off';
-      input.spellcheck = false;
 
       promptRow.appendChild(promptLabel);
       promptRow.appendChild(input);
       container.appendChild(promptRow);
 
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = \`\${protocol}//\${location.host}/ws/terminal/\${role}?mock=true\`;
-      let ws = null;
-
-      try {
-        ws = new WebSocket(wsUrl);
-        ws.onopen = () => {
-          appendLog(container, \`\x1b[32m[+] \${role.toUpperCase()} 실시간 PTY 게이트웨이에 연결되었습니다.\x1b[0m\`);
-        };
-        ws.onmessage = (event) => {
-          appendLog(container, event.data);
-          checkAndApplyAutoEvaluation(lastExecutedCmd, event.data);
-        };
-      } catch (err) {
-        console.warn('WebSocket connection deferred:', err);
-      }
-
-      function appendLog(target, text) {
-        const line = document.createElement('div');
-        line.className = 'font-mono text-xs leading-relaxed text-[#e7e9ee] whitespace-pre-wrap';
-        // strip ansi codes for clean display
-        line.textContent = text.replace(/\\x1b\\[[0-9;]*m/g, '');
-        container.insertBefore(line, promptRow);
-        container.scrollTop = container.scrollHeight;
-      }
-
-      input.addEventListener('keydown', (e) => {
+      input.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter') {
           const cmd = input.value.trim();
           if (!cmd) return;
           input.value = '';
-          lastExecutedCmd = cmd;
 
-          appendLog(container, \`\${promptLabel.textContent}\${cmd}\`);
+          const userEcho = document.createElement('div');
+          userEcho.className = 'font-mono text-xs text-zinc-300';
+          userEcho.textContent = (role === 'attacker' ? 'root@kalibox:~# ' : 'secops@metasploitable2:~$ ') + cmd;
+          container.insertBefore(userEcho, promptRow);
 
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(cmd + '\\r');
-          } else {
-            // Local fallback handler
-            handleLocalMockCommand(cmd, role, (out) => appendLog(container, out), checkAndApplyAutoEvaluation);
+          const loading = document.createElement('div');
+          loading.className = 'font-mono text-xs text-zinc-500 italic';
+          loading.textContent = '[*] 명령 실행 중...';
+          container.insertBefore(loading, promptRow);
+          container.scrollTop = container.scrollHeight;
+
+          try {
+            const res = await fetch('/api/missions/evaluate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ command: cmd, role }),
+            });
+            const data = await res.json();
+            loading.remove();
+
+            let outText = '';
+            if (Array.isArray(data) && data.length > 0) {
+              outText = data.map(d => d.message).join('\\n');
+            } else if (data.message) {
+              outText = data.message;
+            } else {
+              outText = '[*] Command completed with code 0.';
+            }
+
+            const outDiv = document.createElement('div');
+            outDiv.className = 'font-mono text-xs text-zinc-400 whitespace-pre-wrap py-1';
+            outDiv.textContent = outText;
+            container.insertBefore(outDiv, promptRow);
+
+            checkAndApplyAutoEvaluation(cmd, outText);
+          } catch {
+            loading.textContent = '[-] 통신 오류 또는 PTY 응답 대기 중';
           }
+          container.scrollTop = container.scrollHeight;
         }
       });
     }
 
-    function handleLocalMockCommand(cmd, role, output, checkAutoEval) {
-      const lower = cmd.toLowerCase();
-      let resText = '';
-
-      if (lower.includes('whois')) {
-        resText = \`% MegaCorp Internal Whois Database Server\\nDomain: megacorp.internal\\nRegistrant: MegaCorp Technologies, Inc.\\nTech Email: admin@megacorp.internal\\nCIDR: 172.28.0.0/16\\nStatus: ACTIVE\\nFLAG: FLAG{WHOIS_RECON_SUCCESS}\`;
-      } else if (lower.includes('axfr') || lower.includes('dig')) {
-        resText = \`;; <<>> DiG 9.18.1 <<>> axfr @172.28.0.15 megacorp.internal\\nmegacorp.internal. IN SOA ns1.megacorp.internal.\\nns1.megacorp.internal. IN A 172.28.0.15\\ntarget-linux.megacorp.internal. IN A 172.28.0.20\\nbackup-s3.megacorp.internal. IN A 172.28.0.25\\ndb-mssql.megacorp.internal. IN A 172.28.0.30\\nFLAG: FLAG{ZONE_TRANSFER_EXPOSED}\`;
-      } else if (lower.includes('nmap') || lower.includes('db_nmap')) {
-        resText = \`Starting Nmap 7.94 ( https://nmap.org )\\nNmap scan report for 172.28.0.20\\nPORT     STATE SERVICE\\n21/tcp   open  ftp\\n22/tcp   open  ssh\\n80/tcp   open  http\\n445/tcp  open  netbios-ssn\\nNmap scan report for 172.28.0.30\\nPORT     STATE SERVICE\\n1433/tcp open  ms-sql-s\\nFLAG: FLAG{MSF_DB_NMAP_RECORDED}\`;
-      } else if (lower.includes('mssql')) {
-        resText = \`[*] 172.28.0.30:1433 - Starting MSSQL login brute-force...\\n[+] 172.28.0.30:1433 - MSSQL - Login Successful: sa:Password123!\\n[*] Active session established on MSSQL Server 2019\\nFLAG: FLAG{MSSQL_SA_PWNED}\`;
-      } else if (lower.includes('s3') || lower.includes('aws') || lower.includes('minio')) {
-        resText = \`download: s3://megacorp-backup/config.env to -\\nDB_HOST=172.28.0.30\\nDB_USER=sa\\nDB_PASS=Password123!\\nAWS_ACCESS_KEY_ID=minioadmin\\nFLAG: FLAG{S3_CONFIDENTIAL_LEAK}\`;
-      } else if (lower.includes('custom_tcp_banner') || lower.includes('custom') || lower.includes('banner')) {
-        resText = \`[*] Running custom TCP banner scanner against 172.28.0.20...\\n[+] 172.28.0.20:21 - Banner: 220 (vsFTPd 2.3.4)\\n[*] Module execution completed.\\nFLAG: FLAG{CUSTOM_RUBY_BANNER_GRABBED}\`;
-      } else {
-        resText = \`[*] Executed: \${cmd}\\n[+] Ready for next reconnaissance command.\`;
-      }
-
-      output(resText);
-      if (typeof checkAutoEval === 'function') {
-        checkAutoEval(cmd, resText);
-      }
-    }
-
     function attachEventListeners() {
-      // Role badge clicks to switch roles
-      document.querySelectorAll('.role-switcher-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const r = btn.getAttribute('data-role');
-          if (r) {
-            currentRole = r;
-            const url = new URL(window.location);
-            url.searchParams.set('role', r);
-            window.history.pushState({}, '', url);
+      // Role switch buttons
+      document.querySelectorAll('.role-switch-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const href = btn.getAttribute('href');
+          currentRole = parseRoleFromUrl(href);
+          history.pushState(null, '', href);
+          render();
+        });
+      });
+
+      // Mission list click
+      document.querySelectorAll('.mission-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const mId = card.getAttribute('data-mission-id');
+          if (mId) {
+            activeMissionId = mId;
+            const targetMission = missionsState.find(m => m.id === mId);
+            if (targetMission) {
+              const matchedNode = nodesState.find(n => n.ip === targetMission.targetIp);
+              if (matchedNode) selectedNodeId = matchedNode.id;
+            }
             render();
           }
         });
       });
 
-      // Mission clicks
-      document.querySelectorAll('.mission-item').forEach(el => {
-        el.addEventListener('click', () => {
-          const mid = el.getAttribute('data-mission-id');
-          if (mid) {
-            activeMissionId = mid;
-            render();
-          }
-        });
-      });
-
-      // Radar node clicks
-      document.querySelectorAll('.radar-node-group').forEach(el => {
-        el.addEventListener('click', () => {
-          const nid = el.getAttribute('data-node-id');
-          if (nid) {
-            selectedNodeId = nid;
-            render();
-          }
-        });
-      });
-
-      // Copy hint command button
+      // Copy command button
       document.querySelectorAll('.btn-copy-command').forEach(btn => {
         btn.addEventListener('click', () => {
-          const pre = btn.closest('.p-2\\.5')?.querySelector('pre code');
-          if (pre) {
-            navigator.clipboard.writeText(pre.textContent.trim());
+          const activeMission = missionsState.find(m => m.id === activeMissionId);
+          if (activeMission) {
+            navigator.clipboard.writeText(activeMission.hintCommand);
             btn.innerHTML = '<span class="text-emerald-400">복사됨!</span>';
-            setTimeout(() => { btn.innerHTML = '<i class="fi fi-rr-copy mr-1"></i>복사'; }, 1500);
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사';
+            }, 1500);
           }
         });
       });
 
-      // Reference Knowledge Copy Button
-      document.querySelectorAll('.btn-copy-ref-cmd').forEach(btn => {
+      // Reference Knowledge Tab Switching
+      document.querySelectorAll('.ref-knowledge-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          const targetTab = tab.getAttribute('data-ref-tab');
+          if (targetTab) {
+            refActiveTab = targetTab;
+            render();
+          }
+        });
+      });
+
+      // Shell Script Copy Guide Button
+      document.querySelectorAll('.btn-copy-script-guide').forEach(btn => {
         btn.addEventListener('click', () => {
-          const cmd = btn.getAttribute('data-cmd');
+          const cmd = btn.getAttribute('data-script-cmd') || btn.getAttribute('data-cmd');
           if (cmd) {
             navigator.clipboard.writeText(cmd);
-            const orig = btn.innerHTML;
-            btn.innerHTML = '<span class="text-emerald-400">복사됨!</span>';
-            setTimeout(() => { btn.innerHTML = orig; }, 1500);
+            btn.innerHTML = '<span class="text-emerald-400">복사 완료!</span>';
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fi fi-rr-copy mr-1.5 flex items-center justify-center leading-none"></i>원클릭 스크립트 복사';
+            }, 1500);
           }
         });
       });
@@ -375,34 +413,142 @@ const bundleHtml = `<!DOCTYPE html>
         });
       });
 
-      // Flag submit
-      const submitBtn = document.querySelector('.btn-submit-flag');
-      const flagInput = document.querySelector('.flag-input');
-      if (submitBtn && flagInput) {
-        submitBtn.addEventListener('click', () => {
-          const val = flagInput.value.trim();
-          submittedFlag = val;
-          const result = evaluateSubmittedFlag(val, missionsState);
-          missionsState = result.updatedMissions;
-          flagStatus = result.success ? 'success' : 'error';
-          statusMessage = result.message;
-
-          if (result.success) {
-            // Unlock topology nodes
-            if (val.includes('MSSQL')) {
-              const node = nodesState.find(n => n.id === 'vuln-mssql');
-              if (node) node.status = 'compromised';
-            } else if (val.includes('ZONE_TRANSFER')) {
-              const node = nodesState.find(n => n.id === 'fake-recon');
-              if (node) node.status = 'probed';
-            } else if (val.includes('S3')) {
-              const node = nodesState.find(n => n.id === 'fake-s3');
-              if (node) node.status = 'compromised';
-            }
+      // Copy Single Reference Command
+      document.querySelectorAll('.btn-copy-ref-cmd').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cmd = btn.getAttribute('data-cmd');
+          if (cmd) {
+            navigator.clipboard.writeText(cmd);
+            btn.innerHTML = '<span class="text-emerald-400">복사됨!</span>';
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사';
+            }, 1500);
           }
+        });
+      });
+
+      // Arena: Start Match Button
+      const startBtn = document.querySelector('.btn-start-match');
+      if (startBtn) {
+        startBtn.addEventListener('click', () => {
+          arenaStatus = 'starting';
+          render();
+
+          // Start countdown
+          let cd = 3;
+          const cdTimer = setInterval(() => {
+            cd--;
+            arenaCountdown = cd;
+            if (cd <= 0) {
+              clearInterval(cdTimer);
+              arenaStatus = 'active';
+              fetch('/api/arena/start', { method: 'POST' }).catch(() => {});
+              render();
+            } else {
+              render();
+            }
+          }, 1000);
+        });
+      }
+
+      // Arena: Back to Lobby
+      const backLobbyBtn = document.querySelector('.btn-back-to-lobby');
+      if (backLobbyBtn) {
+        backLobbyBtn.addEventListener('click', () => {
+          arenaStatus = 'waiting';
+          fetch('/api/arena/reset', { method: 'POST' }).catch(() => {});
           render();
         });
       }
+
+      // Arena: Copy Lobby URL
+      const copyLobbyBtn = document.querySelector('.btn-copy-lobby-url');
+      if (copyLobbyBtn) {
+        copyLobbyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(location.origin + '/arena');
+          copyLobbyBtn.innerHTML = '<span class="text-emerald-400">복사 완료!</span>';
+          setTimeout(() => {
+            copyLobbyBtn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>초대 링크 복사';
+          }, 1500);
+        });
+      }
+
+      // Arena: Copy SSH Command
+      const copySshBtn = document.querySelector('.btn-copy-ssh-cmd');
+      if (copySshBtn) {
+        copySshBtn.addEventListener('click', () => {
+          const cmd = copySshBtn.getAttribute('data-cmd') || 'ssh -p 2222 player@' + location.hostname;
+          navigator.clipboard.writeText(cmd);
+          copySshBtn.innerHTML = '<span class="text-emerald-400">복사 완료!</span>';
+          setTimeout(() => {
+            copySshBtn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사';
+          }, 1500);
+        });
+      }
+
+      // Arena: Nickname Input Event
+      const nickInput = document.querySelector('.input-nickname');
+      if (nickInput) {
+        nickInput.addEventListener('input', (e) => {
+          const val = e.target.value;
+          const me = arenaParticipants.find(p => p.id === myPlayerId);
+          if (me) me.nickname = val || 'RedCommander';
+        });
+      }
+
+      // Arena: Toggle Ready Button
+      const toggleReadyBtn = document.querySelector('.btn-toggle-ready');
+      if (toggleReadyBtn) {
+        toggleReadyBtn.addEventListener('click', () => {
+          const me = arenaParticipants.find(p => p.id === myPlayerId);
+          if (me) {
+            me.isReady = !me.isReady;
+            render();
+          }
+        });
+      }
+
+      // Arena: Avatar select
+      document.querySelectorAll('.avatar-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const avId = btn.getAttribute('data-avatar-id');
+          const me = arenaParticipants.find(p => p.id === myPlayerId);
+          if (me && avId) {
+            const avatarMap = {
+              skull: { label: '해커', icon: 'fi-rr-skull' },
+              ghost: { label: '고스트', icon: 'fi-rr-ghost' },
+              'user-secret': { label: '닌자', icon: 'fi-rr-user-secret' },
+              bug: { label: '바이퍼', icon: 'fi-rr-bug' },
+              bolt: { label: '볼트', icon: 'fi-rr-bolt' },
+              shield: { label: '가디언', icon: 'fi-rr-shield' },
+            };
+            if (avatarMap[avId]) {
+              me.avatar = avatarMap[avId].icon;
+              me.avatarLabel = avatarMap[avId].label;
+              render();
+            }
+          }
+        });
+      });
+
+      // Arena: Mesh Filter Tabs
+      document.querySelectorAll('.mesh-filter-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          arenaActiveFilter = tab.getAttribute('data-filter') || 'all';
+          render();
+        });
+      });
+
+      // Arena: Mesh Node Cell Click
+      document.querySelectorAll('.mesh-node-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const nId = cell.getAttribute('data-node-id');
+          if (nId) {
+            arenaSelectedNodeId = nId;
+            render();
+          }
+        });
+      });
 
       // One-click patch buttons
       document.querySelectorAll('.btn-apply-patch').forEach(btn => {
@@ -455,9 +601,51 @@ const bundleHtml = `<!DOCTYPE html>
       } catch {}
     }
 
+    function initArenaStream() {
+      try {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        arenaWs = new WebSocket(\`\${protocol}//\${location.host}/ws/arena\`);
+        arenaWs.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.type === 'init' && data.state) {
+              arenaStatus = data.state.lobbyState;
+              arenaRemainingSeconds = data.state.timeRemaining;
+              if (data.state.players && data.state.players.length > 0) {
+                arenaPlayers = data.state.leaderboard;
+              }
+              if (data.state.recentAttacks && data.state.recentAttacks.length > 0) {
+                arenaTraces = data.state.recentAttacks;
+              }
+              render();
+            } else if (data.type === 'match:tick') {
+              arenaRemainingSeconds = data.remainingSeconds;
+              render();
+            } else if (data.type === 'match:started') {
+              arenaStatus = 'active';
+              arenaRemainingSeconds = data.remainingSeconds;
+              render();
+            } else if (data.type === 'match:finished') {
+              arenaStatus = 'finished';
+              if (data.leaderboard) arenaPlayers = data.leaderboard;
+              render();
+            } else if (data.type === 'attack:compromised') {
+              if (data.event) arenaTraces.unshift(data.event);
+              if (data.leaderboard) arenaPlayers = data.leaderboard;
+              render();
+            } else if (data.type === 'player:joined') {
+              if (data.players) arenaParticipants = data.players;
+              render();
+            }
+          } catch {}
+        };
+      } catch {}
+    }
+
     // Run render immediately
     render();
     initEventStream();
+    initArenaStream();
   </script>
 </body>
 </html>

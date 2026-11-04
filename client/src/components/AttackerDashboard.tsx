@@ -21,6 +21,7 @@ export interface MissionItem {
   targetIp: string;
   hintCommand: string;
   flagKey: string;
+  aliases?: string[];
   points: number;
   solved: boolean;
 }
@@ -35,6 +36,10 @@ export const CH3_MISSIONS: MissionItem[] = [
     targetIp: "172.28.0.15",
     hintCommand: "whois -h 172.28.0.15 megacorp.internal",
     flagKey: "FLAG{WHOIS_RECON_SUCCESS}",
+    aliases: [
+      "FLAG{whois_megacorp_admin_discovered}",
+      "FLAG{whois_recon_success}",
+    ],
     points: 100,
     solved: false,
   },
@@ -47,6 +52,11 @@ export const CH3_MISSIONS: MissionItem[] = [
     targetIp: "172.28.0.15",
     hintCommand: "dig axfr @172.28.0.15 megacorp.internal",
     flagKey: "FLAG{ZONE_TRANSFER_EXPOSED}",
+    aliases: [
+      "FLAG{axfr_zone_transferred}",
+      "FLAG{axfr_zone_transfer_subdomains_leaked}",
+      "FLAG{zone_transfer_exposed}",
+    ],
     points: 100,
     solved: false,
   },
@@ -59,6 +69,12 @@ export const CH3_MISSIONS: MissionItem[] = [
     targetIp: "172.28.0.20",
     hintCommand: "msfconsole -q -x 'db_nmap -sS -sV 172.28.0.20 172.28.0.30; hosts; services'",
     flagKey: "FLAG{MSF_DB_NMAP_RECORDED}",
+    aliases: [
+      "FLAG{syn_scan_detected}",
+      "FLAG{nmap_syn_stealth_scan_completed}",
+      "FLAG{msf_auxiliary_portscan_tcp_success}",
+      "FLAG{msf_db_nmap_recorded}",
+    ],
     points: 100,
     solved: false,
   },
@@ -71,6 +87,11 @@ export const CH3_MISSIONS: MissionItem[] = [
     targetIp: "172.28.0.30",
     hintCommand: "use auxiliary/scanner/mssql/mssql_login\nset RHOSTS 172.28.0.30\nrun",
     flagKey: "FLAG{MSSQL_SA_PWNED}",
+    aliases: [
+      "FLAG{mssql_instance_ping_confirmed}",
+      "FLAG{service_version_discovered}",
+      "FLAG{mssql_sa_pwned}",
+    ],
     points: 100,
     solved: false,
   },
@@ -83,6 +104,11 @@ export const CH3_MISSIONS: MissionItem[] = [
     targetIp: "172.28.0.25",
     hintCommand: "aws --endpoint-url http://172.28.0.25:9000 s3 cp s3://megacorp-backup/config.env -",
     flagKey: "FLAG{S3_CONFIDENTIAL_LEAK}",
+    aliases: [
+      "FLAG{s3_bucket_leaked_creds}",
+      "FLAG{s3_open_bucket_config_env_leaked}",
+      "FLAG{s3_confidential_leak}",
+    ],
     points: 100,
     solved: false,
   },
@@ -95,6 +121,11 @@ export const CH3_MISSIONS: MissionItem[] = [
     targetIp: "172.28.0.20",
     hintCommand: "msfconsole -m scenarios/modules -x 'use auxiliary/scanner/custom_tcp_banner; run'",
     flagKey: "FLAG{CUSTOM_RUBY_BANNER_GRABBED}",
+    aliases: [
+      "FLAG{custom_scanner_ruby_win}",
+      "FLAG{custom_ruby_tcp_scanner_executed_successfully}",
+      "FLAG{custom_ruby_banner_grabbed}",
+    ],
     points: 100,
     solved: false,
   },
@@ -111,7 +142,8 @@ export interface AttackerDashboardProps {
 }
 
 /**
- * Validates submitted flag and returns updated mission list + score
+ * Validates submitted flag and returns updated mission list + score.
+ * Supports case-insensitivity, leading/trailing whitespace tolerance, and alias flags.
  */
 export function evaluateSubmittedFlag(
   flagInput: string,
@@ -122,8 +154,14 @@ export function evaluateSubmittedFlag(
   updatedMissions: MissionItem[];
   totalScore: number;
 } {
-  const trimmed = flagInput.trim();
-  const matched = missions.find((m) => m.flagKey.toUpperCase() === trimmed.toUpperCase());
+  const trimmed = (flagInput || "").trim();
+  const upperTrimmed = trimmed.toUpperCase();
+
+  const matched = missions.find(
+    (m) =>
+      m.flagKey.toUpperCase() === upperTrimmed ||
+      (m.aliases && m.aliases.some((a) => a.toUpperCase() === upperTrimmed)),
+  );
 
   if (!matched) {
     const totalScore = missions.filter((m) => m.solved).reduce((acc, m) => acc + m.points, 0);
@@ -154,27 +192,80 @@ export function evaluateTerminalOutput(
   missions: MissionItem[] = CH3_MISSIONS,
 ): { matched: boolean; mission?: MissionItem; updatedMissions: MissionItem[]; totalScore?: number; message?: string } {
   const text = `${cmd} ${output}`.toLowerCase();
+  const normalizedText = text.replace(/\s+/g, " ");
 
   for (const m of missions) {
     if (m.solved) continue;
 
     let isMatch = false;
     if (m.id === "m1-whois") {
-      isMatch = text.includes("whois") && (text.includes("megacorp") || text.includes("172.28.0.15") || text.includes("admin@megacorp") || text.includes("whois_recon_success"));
+      isMatch =
+        (text.includes("whois") || normalizedText.includes("whois")) &&
+        (text.includes("megacorp") ||
+          text.includes("172.28.0.15") ||
+          text.includes("admin@megacorp") ||
+          text.includes("orgname") ||
+          text.includes("whois_recon_success"));
     } else if (m.id === "m2-dns-axfr") {
-      isMatch = (text.includes("axfr") || text.includes("zone transfer")) && (text.includes("megacorp") || text.includes("172.28.0.15") || text.includes("ns1") || text.includes("zone_transfer_exposed"));
+      isMatch =
+        (text.includes("axfr") ||
+          text.includes("zone transfer") ||
+          text.includes("zone_transfer") ||
+          normalizedText.includes("host -l") ||
+          normalizedText.includes("nslookup -type=axfr") ||
+          normalizedText.includes("nslookup -type=any")) &&
+        (text.includes("megacorp") ||
+          text.includes("172.28.0.15") ||
+          text.includes("ns1") ||
+          text.includes("db-mssql") ||
+          text.includes("backup-s3") ||
+          text.includes("zone_transfer_exposed"));
     } else if (m.id === "m3-db-nmap") {
-      isMatch = (text.includes("nmap") || text.includes("db_nmap")) && (text.includes("172.28.0.20") || text.includes("21/tcp") || text.includes("open  ftp") || text.includes("msf_db_nmap_recorded") || text.includes("syn_scan_detected"));
+      isMatch =
+        (text.includes("nmap") || text.includes("db_nmap")) &&
+        (text.includes("172.28.0.20") ||
+          text.includes("172.28.0.10") ||
+          text.includes("172.28.0.0") ||
+          text.includes("21/tcp") ||
+          text.includes("22/tcp") ||
+          text.includes("445/tcp") ||
+          text.includes("open  ftp") ||
+          text.includes("open ftp") ||
+          text.includes("msf_db_nmap_recorded") ||
+          text.includes("syn_scan_detected"));
     } else if (m.id === "m4-mssql-login") {
-      isMatch = (text.includes("mssql") || text.includes("1433")) && (text.includes("login") || text.includes("sa") || text.includes("run") || text.includes("instance") || text.includes("mssql_sa_pwned"));
+      isMatch =
+        (text.includes("mssql") || text.includes("1433")) &&
+        (text.includes("login") ||
+          text.includes("sa") ||
+          text.includes("run") ||
+          text.includes("instance") ||
+          text.includes("mssql_sa_pwned"));
     } else if (m.id === "m5-s3-leak") {
-      isMatch = (text.includes("s3") || text.includes("minio") || text.includes("9000")) && (text.includes("megacorp-backup") || text.includes("config.env") || text.includes("s3_confidential_leak"));
+      isMatch =
+        (text.includes("s3") || text.includes("minio") || text.includes("9000")) &&
+        (text.includes("megacorp-backup") ||
+          text.includes("config.env") ||
+          text.includes("s3_confidential_leak"));
     } else if (m.id === "m6-custom-scanner") {
-      isMatch = (text.includes("custom_tcp_banner") || text.includes("custom-scanner") || text.includes("tcp_banner") || text.includes("custom_ruby_banner_grabbed"));
+      isMatch =
+        text.includes("custom_tcp_banner") ||
+        text.includes("custom-scanner") ||
+        text.includes("tcp_banner") ||
+        text.includes("custom_ruby_banner_grabbed");
     }
 
     if (!isMatch && m.flagKey && text.includes(m.flagKey.toLowerCase())) {
       isMatch = true;
+    }
+
+    if (!isMatch && m.aliases) {
+      for (const alias of m.aliases) {
+        if (text.includes(alias.toLowerCase())) {
+          isMatch = true;
+          break;
+        }
+      }
     }
 
     if (isMatch) {

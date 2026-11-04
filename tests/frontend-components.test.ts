@@ -47,6 +47,12 @@ describe("Frontend Role-Based Routing (App.tsx)", () => {
     assert.equal(parseRoleFromUrl("?role=observer"), "observer");
   });
 
+  it("AC-1: parses /arena or ?role=arena to 'arena'", () => {
+    assert.equal(parseRoleFromUrl("?role=arena"), "arena");
+    assert.equal(parseRoleFromUrl("http://172.31.1.112:3000/arena"), "arena");
+    assert.equal(parseRoleFromUrl("/arena"), "arena");
+  });
+
   it("AC-1: defaults to 'observer' when role is missing or invalid", () => {
     assert.equal(parseRoleFromUrl(""), "observer");
     assert.equal(parseRoleFromUrl("?something=else"), "observer");
@@ -241,6 +247,19 @@ describe("Full Application Grid Layouts (App.tsx)", () => {
     assert.ok(html.includes("방어자 관제 센터"));
     assert.ok(html.includes("terminal-defender-container"));
     assert.ok(!html.includes("grid-resizer-bar"), "Observer resizer should not be rendered in defender mode");
+  });
+
+  it("AC-1: renders CTF Arena lobby in arena mode when waiting", () => {
+    const html = renderAppHtml({ role: "arena", arenaStatus: "waiting" });
+    assert.ok(html.includes("CTF 아레나 대기실") || html.includes("Wi-Fi LAN 접속 안내"));
+    assert.ok(html.includes("대회 시작"));
+  });
+
+  it("AC-1: renders CTF Arena match view with 200 nodes and scoreboard when active", () => {
+    const html = renderAppHtml({ role: "arena", arenaStatus: "active" });
+    assert.ok(html.includes("200 가상 인터넷 노드 격자 히트맵 레이더") || html.includes("200-NODE MESH"));
+    assert.ok(html.includes("실시간 순위표") || html.includes("실시간 공격 추적 피드"));
+    assert.ok(html.includes("terminal-attacker-container"));
   });
 });
 
