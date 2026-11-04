@@ -8,6 +8,7 @@ import { INITIAL_TOPOLOGY_NODES } from "../client/src/components/TopologyRadar.j
 import { INITIAL_LOBBY_PARTICIPANTS, DEFAULT_MATCH_CONFIG } from "../client/src/components/ArenaLobby.js";
 import { INITIAL_200_NODES } from "../client/src/components/MeshRadar200.js";
 import { INITIAL_SCOREBOARD_PLAYERS, INITIAL_ATTACK_TRACES } from "../client/src/components/ArenaScoreboard.js";
+import { TUTORIAL_SLIDES } from "../client/src/components/TutorialSlides.js";
 
 // Read all client modules
 const ROOT = process.cwd();
@@ -31,6 +32,8 @@ const initialHtml = renderAppHtml({
   arenaActiveFilter: "all",
   arenaSelectedNodeId: INITIAL_200_NODES[41]?.id || INITIAL_200_NODES[0]?.id,
   refActiveTab: "all",
+  tutorialSlideStep: 1,
+  isTutorialSlideOpen: false,
 });
 
 const bundleHtml = `<!DOCTYPE html>
@@ -154,6 +157,8 @@ const bundleHtml = `<!DOCTYPE html>
     let refActiveTab = 'all';
     let myPlayerId = 'p-host';
     let arenaWs = null;
+    let tutorialSlideStep = 1;
+    let isTutorialSlideOpen = false;
 
     // Re-render when role or state changes
     function render() {
@@ -181,6 +186,8 @@ const bundleHtml = `<!DOCTYPE html>
         arenaActiveFilter,
         arenaSelectedNodeId,
         refActiveTab,
+        tutorialSlideStep,
+        isTutorialSlideOpen,
       });
 
       attachEventListeners();
@@ -574,7 +581,113 @@ const bundleHtml = `<!DOCTYPE html>
           }
         });
       });
+
+      // Tutorial Slide Deck Modal Open Button
+      const openSlidesBtn = document.getElementById('btn-open-tutorial-slides');
+      if (openSlidesBtn) {
+        openSlidesBtn.addEventListener('click', () => {
+          isTutorialSlideOpen = true;
+          render();
+        });
+      }
+
+      // Tutorial Slide Deck Modal Close Button
+      const closeSlidesBtn = document.getElementById('btn-close-tutorial-slides');
+      if (closeSlidesBtn) {
+        closeSlidesBtn.addEventListener('click', () => {
+          isTutorialSlideOpen = false;
+          render();
+        });
+      }
+
+      // Backdrop click to close
+      const modalBackdrop = document.getElementById('tutorial-slides-modal');
+      if (modalBackdrop) {
+        modalBackdrop.addEventListener('click', (e) => {
+          if (e.target.id === 'tutorial-slides-modal') {
+            isTutorialSlideOpen = false;
+            render();
+          }
+        });
+      }
+
+      // Prev Slide Button
+      const prevSlideBtn = document.getElementById('btn-slide-prev');
+      if (prevSlideBtn) {
+        prevSlideBtn.addEventListener('click', () => {
+          if (tutorialSlideStep > 1) {
+            tutorialSlideStep--;
+            render();
+          }
+        });
+      }
+
+      // Next Slide Button
+      const nextSlideBtn = document.getElementById('btn-slide-next');
+      if (nextSlideBtn) {
+        nextSlideBtn.addEventListener('click', () => {
+          if (tutorialSlideStep < 6) {
+            tutorialSlideStep++;
+            render();
+          }
+        });
+      }
+
+      // Slide Step Tabs
+      document.querySelectorAll('.slide-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const step = parseInt(btn.getAttribute('data-step') || '1', 10);
+          if (step >= 1 && step <= 6) {
+            tutorialSlideStep = step;
+            render();
+          }
+        });
+      });
+
+      // Slide Dot Indicators
+      document.querySelectorAll('.slide-dot-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const step = parseInt(btn.getAttribute('data-step') || '1', 10);
+          if (step >= 1 && step <= 6) {
+            tutorialSlideStep = step;
+            render();
+          }
+        });
+      });
+
+      // Slide Command Copy Button
+      document.querySelectorAll('.btn-slide-copy-cmd').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cmd = btn.getAttribute('data-cmd');
+          if (cmd) {
+            navigator.clipboard.writeText(cmd);
+            btn.innerHTML = '<span class="text-emerald-400">복사됨!</span>';
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i><span>복사</span>';
+            }, 1500);
+          }
+        });
+      });
     }
+
+    // Global Keydown Handler for Slide Keyboard Navigation
+    window.addEventListener('keydown', (e) => {
+      if (!isTutorialSlideOpen) return;
+      if (e.key === 'Escape') {
+        isTutorialSlideOpen = false;
+        render();
+      } else if (e.key === 'ArrowLeft') {
+        if (tutorialSlideStep > 1) {
+          tutorialSlideStep--;
+          render();
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (tutorialSlideStep < 6) {
+          tutorialSlideStep++;
+          render();
+        }
+      }
+    });
 
     function initEventStream() {
       try {
