@@ -11,6 +11,8 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
+    ports:
+      - "2222:22"
     volumes:
       - kali_data:/root
       - msf_db:/var/lib/postgresql
