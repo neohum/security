@@ -11,6 +11,7 @@ export interface Mission {
   target: string;
   hint: string;
   flag: string;
+  aliases?: string[];
   validationPattern: string;
   defenderExplanation: string;
   defenderPatch: string;
@@ -88,7 +89,25 @@ export function getAllMissions(customPath?: string): Mission[] {
 
 export function getMissionById(id: string, customPath?: string): Mission | undefined {
   const missions = getAllMissions(customPath);
-  return missions.find(m => m.id === id);
+  const targetId = (id || '').trim().toLowerCase();
+
+  // 1. Direct ID match
+  const exact = missions.find(m => m.id.toLowerCase() === targetId);
+  if (exact) return exact;
+
+  // 2. Tutorial quest aliases mapping
+  if (targetId === 'm4-mssql-login' || targetId === 'quest-mssql-login' || targetId === 'quest-msf-services' || targetId === 'mssql') {
+    return missions.find(m => m.id === 'service-mssql-ping-07');
+  }
+  if (targetId === 'm5-s3-leak' || targetId === 'quest-s3' || targetId === 's3') {
+    return missions.find(m => m.id === 'service-s3-bucket-08');
+  }
+  if (targetId === 'm6-custom-scanner' || targetId === 'quest-custom-scanner' || targetId === 'custom-scanner' || targetId === 'banner') {
+    return missions.find(m => m.id === 'custom-scanner-ruby-12');
+  }
+
+  // 3. Match against mission aliases
+  return missions.find(m => m.aliases?.some(a => a.toLowerCase() === targetId));
 }
 
 export function getMissionsByCategory(category: string, customPath?: string): Mission[] {
@@ -125,13 +144,25 @@ export function generateDefenderAlert(mission: Mission): DefenderAlert {
 
 /**
  * Validates a flag submission against all available missions.
+ * Supports case-insensitivity, leading/trailing whitespace tolerance.
  */
 export function evaluateFlag(flagInput: string, customPath?: string): EvaluationResult {
-  const trimmed = flagInput.trim();
+  const trimmed = (flagInput || '').trim();
+  if (!trimmed) {
+    return {
+      matched: false,
+      matchedBy: 'none',
+      message: '플래그가 비어있습니다.'
+    };
+  }
+
   const missions = getAllMissions(customPath);
 
   for (const mission of missions) {
-    if (mission.flag === trimmed) {
+    const isDirectMatch = mission.flag.toLowerCase() === trimmed.toLowerCase();
+    const isAliasMatch = mission.aliases?.some(a => a.toLowerCase() === trimmed.toLowerCase());
+
+    if (isDirectMatch || isAliasMatch) {
       return {
         matched: true,
         mission,
@@ -152,6 +183,7 @@ export function evaluateFlag(flagInput: string, customPath?: string): Evaluation
 
 /**
  * Evaluates terminal command or stdout stream against mission validation regex patterns.
+ * Normalizes extra whitespace and supports case-insensitive pattern matching.
  */
 export function evaluateCommand(
   command: string,
@@ -160,13 +192,14 @@ export function evaluateCommand(
 ): EvaluationResult[] {
   const missions = getAllMissions(customPath);
   const results: EvaluationResult[] = [];
-  const textToScan = `${command}\n${stdout || ''}`;
+  const textToScan = `${command || ''}\n${stdout || ''}`;
+  const normalizedText = textToScan.replace(/\s+/g, ' ');
 
   for (const mission of missions) {
     try {
       const regex = new RegExp(mission.validationPattern, 'i');
-      if (regex.test(textToScan)) {
-        const matchedBy = regex.test(command) ? 'command' : 'output';
+      if (regex.test(textToScan) || regex.test(normalizedText)) {
+        const matchedBy = (command && regex.test(command)) ? 'command' : 'output';
         results.push({
           matched: true,
           mission,
@@ -186,6 +219,7 @@ export function evaluateCommand(
 
 /**
  * Evaluates user submission for a specific targeted mission.
+ * Supports case-insensitive flag check, regex matching, and whitespace tolerance.
  */
 export function evaluateSubmission(
   missionId: string,
@@ -201,10 +235,14 @@ export function evaluateSubmission(
     };
   }
 
-  const trimmed = input.trim();
+  const trimmed = (input || '').trim();
 
-  // 1. Direct flag check
-  if (trimmed === mission.flag) {
+  // 1. Direct flag check (case-insensitive + aliases)
+  const isDirectFlag =
+    trimmed.toLowerCase() === mission.flag.toLowerCase() ||
+    mission.aliases?.some(a => a.toLowerCase() === trimmed.toLowerCase());
+
+  if (isDirectFlag) {
     return {
       matched: true,
       mission,
@@ -218,7 +256,8 @@ export function evaluateSubmission(
   // 2. Validation Pattern check on command / output
   try {
     const regex = new RegExp(mission.validationPattern, 'i');
-    if (regex.test(trimmed)) {
+    const normalized = trimmed.replace(/\s+/g, ' ');
+    if (regex.test(trimmed) || regex.test(normalized)) {
       return {
         matched: true,
         mission,

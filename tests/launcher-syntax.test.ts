@@ -106,3 +106,22 @@ test('LAN Client Guide: documentation completeness', () => {
   assert.match(content, /방화벽/);
   assert.match(content, /Wi-Fi/i);
 });
+
+test('Launcher scripts: macOS & Linux run-host.sh and cleanup-host.sh validity', () => {
+  const runShPath = path.resolve(process.cwd(), 'run-host.sh');
+  const cleanShPath = path.resolve(process.cwd(), 'cleanup-host.sh');
+
+  assert.ok(fs.existsSync(runShPath), 'run-host.sh must exist');
+  assert.ok(fs.existsSync(cleanShPath), 'cleanup-host.sh must exist');
+
+  const runSh = fs.readFileSync(runShPath, 'utf-8');
+  assert.match(runSh, /#!\/usr\/bin\/env bash/);
+  assert.match(runSh, /ipconfig getifaddr/); // macOS detection
+  assert.match(runSh, /hostname -I/);        // Linux detection
+  assert.match(runSh, /npm install/);
+  assert.match(runSh, /server\/index\.ts/);
+
+  const cleanSh = fs.readFileSync(cleanShPath, 'utf-8');
+  assert.match(cleanSh, /#!\/usr\/bin\/env bash/);
+  assert.match(cleanSh, /docker compose/);
+});

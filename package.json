@@ -4,13 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "npx tsx server/index.ts",
     "test": "npx tsx --test tests/*.test.ts",
+    "bundle:client": "npx tsx scripts/bundle-client.ts",
     "sim:start": "npx tsx server/index.ts",
     "sim:host": "powershell -ExecutionPolicy Bypass -File .\\run-host.ps1",
     "sim:clean": "powershell -ExecutionPolicy Bypass -File .\\cleanup-host.ps1",
+    "sim:host:sh": "bash ./run-host.sh",
+    "sim:clean:sh": "bash ./cleanup-host.sh",
+    "isolate": "npx tsx scripts/loop/public-repo-guard.ts --apply",
     "plan:check": "npx tsx scripts/loop/plan-doc.ts check",
     "plan:compile": "npx tsx scripts/loop/plan-doc.ts compile",
     "plan:html": "npx tsx scripts/loop/plan-doc.ts html",
     "plan:web": "npx tsx scripts/loop/planner-web.ts"
+  },
+  "dependencies": {
+    "ssh2": "^1.17.0"
+  },
+  "devDependencies": {
+    "@types/ssh2": "^1.15.6",
+    "tsx": "^4.19.2"
   }
 }

@@ -2,7 +2,9 @@
   "mcpServers": {
     "harness": {
       "command": "node",
-      "args": ["scripts/loop/mcp-harness.ts"],
+      "args": [
+        "scripts/loop/mcp-harness.ts"
+      ],
       "env": {}
     }
   }

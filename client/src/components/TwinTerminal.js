@@ -1,4 +1,4 @@
-// TwinTerminal.js — ES Module Runtime for TwinTerminal with Knowledge Cards
+// TwinTerminal.js — ES Module Runtime for TwinTerminal with Knowledge Cards & Shell Script Copy Guide
 
 export const TERMINAL_CONFIGS = {
   attacker: {
@@ -41,6 +41,8 @@ export const ROLE_KNOWLEDGE = {
     items: [
       {
         tag: "수동 정찰",
+        tab: "recon",
+        tabLabel: "기초 정찰",
         badgeClass: "border-zinc-700 bg-zinc-900 text-zinc-300",
         cmd: "whois -h 172.28.0.15 megacorp.internal",
         summary: "Whois 도메인 등록정보 수집",
@@ -48,6 +50,8 @@ export const ROLE_KNOWLEDGE = {
       },
       {
         tag: "영역 전송",
+        tab: "recon",
+        tabLabel: "기초 정찰",
         badgeClass: "border-red-500/40 bg-red-950/30 text-red-300",
         cmd: "dig axfr @172.28.0.15 megacorp.internal",
         summary: "DNS Zone Transfer (AXFR) 취약점",
@@ -55,6 +59,8 @@ export const ROLE_KNOWLEDGE = {
       },
       {
         tag: "스텔스 스캔",
+        tab: "recon",
+        tabLabel: "기초 정찰",
         badgeClass: "border-amber-500/40 bg-amber-950/30 text-amber-300",
         cmd: "nmap -sS -Pn 172.28.0.20",
         summary: "Nmap TCP SYN Half-Open 스캔",
@@ -62,10 +68,48 @@ export const ROLE_KNOWLEDGE = {
       },
       {
         tag: "MSF 보조",
+        tab: "recon",
+        tabLabel: "기초 정찰",
         badgeClass: "border-purple-500/40 bg-purple-950/30 text-purple-300",
         cmd: "msfconsole -q -x \"use auxiliary/scanner/smb/smb_version; set RHOSTS 172.28.0.20; run; exit\"",
         summary: "Metasploit Auxiliary 버전 지문 분석",
         desc: "공격 페이로드 투입 없이 원격 서비스 버전(SMB, MSSQL 등) 지문을 정밀 분석하고, 결과를 MSF 내장 DB(hosts, services)에 자동 체계화하여 후속 침투 벡터를 정밀 설계합니다.",
+      },
+      {
+        tag: "대역 자동화",
+        tab: "script",
+        tabLabel: "셸 스크립트",
+        badgeClass: "border-cyan-500/40 bg-cyan-950/30 text-cyan-300",
+        cmd: "for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done",
+        summary: "200개 노드 Whois 대역 자동화 스위프",
+        desc: "200개 가상 인터넷 노드를 일일이 수동 검색하지 않고, Bash for 루프 원라이너 또는 파이썬 스크립트를 실행하여 10.10.1.1부터 10.10.1.200까지 고속 순회하며 10대 취약 서버를 자동 감지하고 플래그를 일괄 탈취합니다.",
+      },
+      {
+        tag: "스크립트 작성",
+        tab: "script",
+        tabLabel: "셸 스크립트",
+        badgeClass: "border-amber-500/40 bg-amber-950/30 text-amber-300",
+        cmd: "echo 'for i in {1..200}; do whois -h 10.10.1.$i megacorp.internal; done' > scan.sh",
+        summary: "나만의 셸 스크립트 (.sh) 생성 및 저장",
+        desc: "echo 리다이렉션 또는 cat EOF를 사용해 터미널 내부에서 자신만의 정찰/침투 셸 스크립트를 파일로 생성하고, 'chmod +x scan.sh; ./scan.sh' 또는 'bash scan.sh'로 즉시 실행할 수 있습니다.",
+      },
+      {
+        tag: "종합 침투 .sh",
+        tab: "script",
+        tabLabel: "셸 스크립트",
+        badgeClass: "border-indigo-500/40 bg-indigo-950/30 text-indigo-300",
+        cmd: "bash /root/tools/auto_pwn.sh",
+        summary: "200개 노드 6대 분야 전수 셸 스크립트 실행",
+        desc: "Whois, DNS-AXFR, Nmap, S3 등 200개 가상 인터넷 노드의 모든 취약점을 일괄 순회하여 대량의 점수를 단숨에 획득하는 실전 자동화 셸 스크립트입니다.",
+      },
+      {
+        tag: "파이썬 툴킷",
+        tab: "script",
+        tabLabel: "셸 스크립트",
+        badgeClass: "border-emerald-500/40 bg-emerald-950/30 text-emerald-300",
+        cmd: "python3 /root/tools/whois_sweep.py",
+        summary: "파이썬 일괄 정찰 툴킷 실행",
+        desc: "칼리 터미널의 /root/tools/ 디렉터리에 제공되는 whois_sweep.py, axfr_sweep.sh, nmap_sweep.py를 실행하거나 직접 스크립트를 작성하여 200개 대역 전체를 1초 만에 자동 전수 스캔합니다.",
       },
     ],
   },
@@ -76,6 +120,8 @@ export const ROLE_KNOWLEDGE = {
     items: [
       {
         tag: "포트 감사",
+        tab: "defense",
+        tabLabel: "보안 감사",
         badgeClass: "border-zinc-700 bg-zinc-900 text-zinc-300",
         cmd: "netstat -tuln",
         summary: "열린 포트 및 리스닝 소켓 전수 조사",
@@ -83,6 +129,8 @@ export const ROLE_KNOWLEDGE = {
       },
       {
         tag: "DNS 봉쇄",
+        tab: "defense",
+        tabLabel: "보안 감사",
         badgeClass: "border-blue-500/40 bg-blue-950/30 text-blue-300",
         cmd: "named.conf -> allow-transfer { none; };",
         summary: "DNS Zone Transfer (AXFR) 차단 정책",
@@ -90,6 +138,8 @@ export const ROLE_KNOWLEDGE = {
       },
       {
         tag: "SYN 차단",
+        tab: "defense",
+        tabLabel: "보안 감사",
         badgeClass: "border-cyan-500/40 bg-cyan-950/30 text-cyan-300",
         cmd: "iptables -A INPUT -p tcp --syn -m limit --limit 5/m -j ACCEPT",
         summary: "패킷 레벨 SYN 스캔 임계치 제어",
@@ -97,6 +147,8 @@ export const ROLE_KNOWLEDGE = {
       },
       {
         tag: "권한 잠금",
+        tab: "defense",
+        tabLabel: "보안 감사",
         badgeClass: "border-emerald-500/40 bg-emerald-950/30 text-emerald-300",
         cmd: "mc anonymous set none myminio/megacorp-backup",
         summary: "S3 공개 버킷 폐쇄 및 SA 계정 보호",
@@ -106,64 +158,173 @@ export const ROLE_KNOWLEDGE = {
   },
 };
 
-export function renderReferenceKnowledgeCardHtml(role = "attacker") {
+export function renderReferenceKnowledgeCardHtml(role = "attacker", activeTab = "all") {
   const info = ROLE_KNOWLEDGE[role] || ROLE_KNOWLEDGE.attacker;
   const isAttacker = role === "attacker";
 
-  const cardsHtml = info.items
-    .map(
-      (item, idx) => `
-      <div class="reference-item p-2.5 rounded border border-zinc-800/80 bg-[#0f1115] hover:border-zinc-700 transition-colors flex flex-col justify-between">
-        <div>
-          <div class="flex items-center justify-between mb-1.5 gap-1.5 flex-wrap">
-            <div class="flex items-center gap-1.5">
-              <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                item.badgeClass
-              } whitespace-nowrap">
-                ${item.tag}
-              </span>
-              <span class="text-xs font-semibold text-[#e7e9ee] font-sans break-keep">${item.summary}</span>
-            </div>
-          </div>
-          
-          <pre class="p-1.5 my-1.5 bg-[#08090b] rounded border border-zinc-800/80 text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap select-all"><code>${
-            item.cmd
-          }</code></pre>
-          
-          <p class="text-[11px] text-[#8a8f9c] leading-relaxed break-keep text-pretty mt-1">
-            ${item.desc}
-          </p>
-        </div>
-
-        <div class="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-1">
-          <span class="text-[10px] text-zinc-500 font-mono">참고 커맨드 #${idx + 1}</span>
-          <div class="flex items-center gap-1.5">
-            <button type="button" class="btn-copy-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors whitespace-nowrap" data-cmd="${item.cmd.replace(/"/g, "&quot;")}">
-              <i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사
-            </button>
-            <button type="button" class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] ${
-              isAttacker
-                ? "text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/40 border-red-500/40"
-                : "text-blue-300 hover:text-white bg-blue-950/40 hover:bg-blue-900/40 border-blue-500/40"
-            } rounded border transition-colors whitespace-nowrap" data-role="${role}" data-cmd="${item.cmd.replace(/"/g, "&quot;")}">
-              <i class="fi fi-rr-play mr-1 flex items-center justify-center leading-none"></i>터미널 입력
-            </button>
-          </div>
-        </div>
+  // Tab switch navigation for attacker commands
+  const tabNavHtml = isAttacker
+    ? `
+      <div class="flex items-center gap-1.5 p-1 bg-[#101217] rounded border border-zinc-800 shrink-0 mb-2.5">
+        <button
+          type="button"
+          class="ref-knowledge-tab inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap ${
+            activeTab === "all"
+              ? "border-red-500/60 bg-red-950/50 text-red-300 font-semibold"
+              : "border-transparent text-zinc-400 hover:text-zinc-200"
+          }"
+          data-ref-tab="all"
+        >
+          <i class="fi fi-rr-apps mr-1.5 flex items-center justify-center leading-none"></i>
+          전체 커맨드 (All)
+        </button>
+        <button
+          type="button"
+          class="ref-knowledge-tab inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap ${
+            activeTab === "recon"
+              ? "border-red-500/60 bg-red-950/50 text-red-300 font-semibold"
+              : "border-transparent text-zinc-400 hover:text-zinc-200"
+          }"
+          data-ref-tab="recon"
+        >
+          <i class="fi fi-rr-search-alt mr-1.5 flex items-center justify-center leading-none"></i>
+          기초 정찰 (Recon)
+        </button>
+        <button
+          type="button"
+          class="ref-knowledge-tab inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap ${
+            activeTab === "script"
+              ? "border-red-500/60 bg-red-950/50 text-red-300 font-semibold"
+              : "border-transparent text-zinc-400 hover:text-zinc-200"
+          }"
+          data-ref-tab="script"
+        >
+          <i class="fi fi-rr-file-code mr-1.5 flex items-center justify-center leading-none"></i>
+          셸 스크립트 자동화 (Scripts)
+        </button>
       </div>
     `
-    )
+    : "";
+
+  // Dedicated Shell Script Copy Guide Box
+  const shellScriptGuideHtml = isAttacker
+    ? `
+      <div class="shell-script-guide-box p-3 mb-2.5 rounded border border-indigo-500/40 bg-indigo-950/20 text-[#e7e9ee] space-y-2 shrink-0 ${
+        activeTab === "recon" ? "hidden" : ""
+      }">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center justify-center leading-none w-6 h-6 rounded border border-indigo-400/50 bg-indigo-900/50 text-indigo-300">
+              <i class="fi fi-rr-file-code flex items-center justify-center leading-none text-xs"></i>
+            </span>
+            <div>
+              <h4 class="text-xs font-bold text-indigo-200 font-sans break-keep">실전 셸 스크립트 (.sh) 작성 &amp; 복사 가이드</h4>
+              <p class="text-[10px] text-zinc-400 break-keep">터미널에서 cat/echo 리다이렉션으로 자동화 스크립트를 즉시 생성하고 실행할 수 있습니다.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              class="btn-copy-script-guide inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded border border-indigo-500/80 transition-colors whitespace-nowrap"
+              data-script-cmd="cat &lt;&lt; 'EOF' &gt; scan.sh&#10;for i in {1..200}; do&#10;  whois -h 10.10.1.$i megacorp.internal&#10;done&#10;EOF&#10;chmod +x scan.sh &amp;&amp; bash scan.sh"
+            >
+              <i class="fi fi-rr-copy mr-1.5 flex items-center justify-center leading-none"></i>원클릭 스크립트 복사
+            </button>
+            <button
+              type="button"
+              class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 rounded border border-emerald-500/50 transition-colors whitespace-nowrap"
+              data-role="attacker"
+              data-cmd="bash /root/tools/auto_pwn.sh"
+            >
+              <i class="fi fi-rr-play mr-1.5 flex items-center justify-center leading-none"></i>auto_pwn.sh 즉시 실행
+            </button>
+          </div>
+        </div>
+        <div class="p-2 rounded border border-zinc-800 bg-[#08090b] font-mono text-[11px] text-emerald-400 select-all overflow-x-auto whitespace-pre"># 1. 200 노드 대역 Whois 고속 스캔 스크립트 작성 및 실행
+cat &lt;&lt; 'EOF' &gt; scan.sh
+for i in {1..200}; do
+  whois -h 10.10.1.$i megacorp.internal
+done
+EOF
+chmod +x scan.sh &amp;&amp; bash scan.sh</div>
+      </div>
+    `
+    : "";
+
+  const cardsHtml = info.items
+    .map((item, idx) => {
+      const isVisible =
+        activeTab === "all" || !item.tab || item.tab === activeTab;
+      const hideClass = isVisible ? "" : "hidden";
+
+      return `
+        <div class="reference-item p-2.5 rounded border border-zinc-800/80 bg-[#0f1115] hover:border-zinc-700 transition-colors flex flex-col justify-between ${hideClass}" data-tab="${
+        item.tab || "recon"
+      }">
+          <div>
+            <div class="flex items-center justify-between mb-1.5 gap-1.5 flex-wrap">
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center leading-none text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                  item.badgeClass
+                } whitespace-nowrap">
+                  ${item.tag}
+                </span>
+                <span class="text-xs font-semibold text-[#e7e9ee] font-sans break-keep">${
+                  item.summary
+                }</span>
+              </div>
+            </div>
+            
+            <pre class="p-1.5 my-1.5 bg-[#08090b] rounded border border-zinc-800/80 text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap select-all"><code>${
+              item.cmd
+            }</code></pre>
+            
+            <p class="text-[11px] text-[#8a8f9c] leading-relaxed break-keep text-pretty mt-1">
+              ${item.desc}
+            </p>
+          </div>
+
+          <div class="mt-2.5 pt-2 border-t border-zinc-800/60 flex items-center justify-between gap-1">
+            <span class="text-[10px] text-zinc-500 font-mono">참고 커맨드 #${
+              idx + 1
+            }</span>
+            <div class="flex items-center gap-1.5">
+              <button type="button" class="btn-copy-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors whitespace-nowrap" data-cmd="${item.cmd.replace(
+                /"/g,
+                "&quot;",
+              )}">
+                <i class="fi fi-rr-copy mr-1 flex items-center justify-center leading-none"></i>복사
+              </button>
+              <button type="button" class="btn-insert-ref-cmd inline-flex items-center justify-center leading-none px-2 py-1 text-[10px] ${
+                isAttacker
+                  ? "text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/40 border-red-500/40"
+                  : "text-blue-300 hover:text-white bg-blue-950/40 hover:bg-blue-900/40 border-blue-500/40"
+              } rounded border transition-colors whitespace-nowrap" data-role="${role}" data-cmd="${item.cmd.replace(
+                /"/g,
+                "&quot;",
+              )}">
+                <i class="fi fi-rr-play mr-1 flex items-center justify-center leading-none"></i>터미널 입력
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    })
     .join("");
 
   return `
-    <div class="knowledge-reference-panel flex flex-col bg-[#0b0c0f] border border-zinc-800 rounded-lg p-3 text-[#e7e9ee] flex-1 min-h-[220px] max-h-[42vh] overflow-hidden mt-3">
+    <div class="knowledge-reference-panel flex flex-col bg-[#0b0c0f] border border-zinc-800 rounded-lg p-3 text-[#e7e9ee] flex-1 min-h-[220px] max-h-[46vh] overflow-hidden mt-3">
       <div class="flex items-center justify-between pb-2 border-b border-zinc-800/80 shrink-0">
         <div class="flex items-center gap-2">
           <i class="fi ${
-            isAttacker ? "fi-rr-book-alt text-[#ff5d6c]" : "fi-rr-shield-check text-[#38bdf8]"
+            isAttacker
+              ? "fi-rr-book-alt text-[#ff5d6c]"
+              : "fi-rr-shield-check text-[#38bdf8]"
           } flex items-center justify-center leading-none text-sm"></i>
           <div>
-            <h3 class="text-xs font-bold text-[#e7e9ee] font-sans break-keep">${info.title}</h3>
+            <h3 class="text-xs font-bold text-[#e7e9ee] font-sans break-keep">${
+              info.title
+            }</h3>
             <p class="text-[11px] text-[#8a8f9c] break-keep">침투 및 방어 실무에서 반드시 알아야 할 핵심 명령어와 보안 지식 (내부 스크롤 가능)</p>
           </div>
         </div>
@@ -172,6 +333,9 @@ export function renderReferenceKnowledgeCardHtml(role = "attacker") {
         </span>
       </div>
 
+      ${tabNavHtml}
+      ${shellScriptGuideHtml}
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-2 flex-1 min-h-0 overflow-y-auto pr-1">
         ${cardsHtml}
       </div>
@@ -179,7 +343,7 @@ export function renderReferenceKnowledgeCardHtml(role = "attacker") {
   `;
 }
 
-export function renderSingleTerminalHtml(config, isFocused = true) {
+export function renderSingleTerminalHtml(config, isFocused = true, activeRefTab = "all") {
   const terminalBuffer = config.initialLines
     .map((line) => `<div class="font-mono text-xs leading-relaxed text-[#e7e9ee] whitespace-pre-wrap">${line}</div>`)
     .join("");
@@ -223,18 +387,19 @@ export function renderSingleTerminalHtml(config, isFocused = true) {
       </div>
 
       <!-- Reference Knowledge Card Directly Below Terminal: 내부 스크롤 지원 -->
-      ${renderReferenceKnowledgeCardHtml(config.role)}
+      ${renderReferenceKnowledgeCardHtml(config.role, activeRefTab)}
     </div>
   `;
 }
 
 export function renderTwinTerminalHtml(props = {}) {
   const role = props.role ?? "both";
+  const activeRefTab = props.activeRefTab ?? "all";
 
   if (role === "attacker") {
     return `
       <div class="twin-terminal-container w-full h-full ${props.className || ""}">
-        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.attacker, true)}
+        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.attacker, true, activeRefTab)}
       </div>
     `;
   }
@@ -242,7 +407,7 @@ export function renderTwinTerminalHtml(props = {}) {
   if (role === "defender") {
     return `
       <div class="twin-terminal-container w-full h-full ${props.className || ""}">
-        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.defender, true)}
+        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.defender, true, activeRefTab)}
       </div>
     `;
   }
@@ -250,10 +415,10 @@ export function renderTwinTerminalHtml(props = {}) {
   return `
     <div class="twin-terminal-container grid grid-cols-1 lg:grid-cols-2 gap-3 w-full h-full ${props.className || ""}">
       <div class="h-full min-h-[220px]">
-        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.attacker, props.activeTerminal === "attacker")}
+        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.attacker, props.activeTerminal === "attacker", activeRefTab)}
       </div>
       <div class="h-full min-h-[220px]">
-        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.defender, props.activeTerminal === "defender")}
+        ${renderSingleTerminalHtml(TERMINAL_CONFIGS.defender, props.activeTerminal === "defender", activeRefTab)}
       </div>
     </div>
   `;

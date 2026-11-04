@@ -3,9 +3,16 @@ import { renderAttackerDashboardHtml, CH3_MISSIONS } from "./components/Attacker
 import { renderDefenderDashboardHtml, INITIAL_PACKET_ALERTS, INITIAL_PATCH_RECOMMENDATIONS } from "./components/DefenderDashboard.js";
 import { renderTwinTerminalHtml } from "./components/TwinTerminal.js";
 import { INITIAL_TOPOLOGY_NODES } from "./components/TopologyRadar.js";
+import { renderArenaLobbyHtml, INITIAL_LOBBY_PARTICIPANTS, DEFAULT_MATCH_CONFIG } from "./components/ArenaLobby.js";
+import { renderMeshRadar200Html, INITIAL_200_NODES } from "./components/MeshRadar200.js";
+import { renderArenaScoreboardHtml, INITIAL_SCOREBOARD_PLAYERS, INITIAL_ATTACK_TRACES } from "./components/ArenaScoreboard.js";
 
 export function parseRoleFromUrl(urlOrSearch = "") {
   try {
+    if (urlOrSearch.includes("/arena") || urlOrSearch.includes("role=arena")) {
+      return "arena";
+    }
+
     const searchString = urlOrSearch.includes("?")
       ? urlOrSearch.slice(urlOrSearch.indexOf("?"))
       : urlOrSearch.startsWith("role=")
@@ -18,6 +25,7 @@ export function parseRoleFromUrl(urlOrSearch = "") {
     if (roleParam === "attacker") return "attacker";
     if (roleParam === "defender") return "defender";
     if (roleParam === "observer") return "observer";
+    if (roleParam === "arena") return "arena";
   } catch {
     // fallback safe default
   }
@@ -30,6 +38,7 @@ export function renderAppHtml(props = {}) {
   const alerts = props.alerts ?? INITIAL_PACKET_ALERTS;
   const patches = props.patches ?? INITIAL_PATCH_RECOMMENDATIONS;
   const nodes = props.nodes ?? INITIAL_TOPOLOGY_NODES;
+  const refActiveTab = props.refActiveTab ?? "all";
 
   const roleBadgeMap = {
     attacker: {
@@ -46,6 +55,11 @@ export function renderAppHtml(props = {}) {
       label: "2x2 전체 관제 (Observer)",
       badgeClass: "border-indigo-500/50 bg-indigo-950/40 text-indigo-300",
       icon: "fi-rr-eye",
+    },
+    arena: {
+      label: "CTF 대회 (Arena)",
+      badgeClass: "border-amber-500/50 bg-amber-950/40 text-amber-300",
+      icon: "fi-rr-trophy",
     },
   };
 
@@ -103,6 +117,17 @@ export function renderAppHtml(props = {}) {
           <i class="fi fi-rr-shield-check mr-1.5 flex items-center justify-center leading-none"></i>
           방어자 (Defender)
         </a>
+        <a
+          href="?role=arena"
+          class="role-switch-btn inline-flex items-center justify-center leading-none px-2.5 py-1 text-xs rounded border transition-colors whitespace-nowrap ${
+            role === "arena"
+              ? "border-amber-500/60 bg-amber-950/50 text-amber-300 font-semibold"
+              : "border-transparent text-zinc-400 hover:text-zinc-200"
+          }"
+        >
+          <i class="fi fi-rr-trophy mr-1.5 flex items-center justify-center leading-none"></i>
+          CTF 대회 (Arena)
+        </a>
       </nav>
 
       <div class="flex items-center gap-2">
@@ -131,7 +156,7 @@ export function renderAppHtml(props = {}) {
           ${renderAttackerDashboardHtml({ missions, nodes, activeMissionId, selectedNodeId, flagStatus, statusMessage, submittedFlag, className: "flex-1" })}
         </div>
         <div class="lg:col-span-5 flex flex-col min-h-0">
-          ${renderTwinTerminalHtml({ role: "attacker", className: "flex-1" })}
+          ${renderTwinTerminalHtml({ role: "attacker", className: "flex-1", activeRefTab })}
         </div>
       </main>
     `;
@@ -142,10 +167,55 @@ export function renderAppHtml(props = {}) {
           ${renderDefenderDashboardHtml({ alerts, patches, className: "flex-1" })}
         </div>
         <div class="lg:col-span-5 flex flex-col min-h-0">
-          ${renderTwinTerminalHtml({ role: "defender", className: "flex-1" })}
+          ${renderTwinTerminalHtml({ role: "defender", className: "flex-1", activeRefTab })}
         </div>
       </main>
     `;
+  } else if (role === "arena") {
+    const arenaStatus = props.arenaStatus ?? "waiting";
+    const remainingSeconds = props.remainingSeconds ?? 900;
+    const arenaParticipants = props.arenaParticipants ?? INITIAL_LOBBY_PARTICIPANTS;
+    const arenaPlayers = props.arenaPlayers ?? INITIAL_SCOREBOARD_PLAYERS;
+    const arenaTraces = props.arenaTraces ?? INITIAL_ATTACK_TRACES;
+    const arenaNodes = props.arenaNodes ?? INITIAL_200_NODES;
+
+    if (arenaStatus === "waiting" || arenaStatus === "starting") {
+      mainContentHtml = `
+        <main class="flex-1 flex flex-col p-3 min-h-0 overflow-y-auto">
+          ${renderArenaLobbyHtml({
+            status: arenaStatus,
+            participants: arenaParticipants,
+            countdown: props.countdown ?? 5,
+          })}
+        </main>
+      `;
+    } else {
+      mainContentHtml = `
+        <main class="flex-1 grid grid-cols-1 xl:grid-cols-12 gap-3 p-3 min-h-0 overflow-y-auto">
+          <!-- Left: Scoreboard & Live Attack Trace (4 cols) -->
+          <div class="xl:col-span-4 flex flex-col min-h-[500px]">
+            ${renderArenaScoreboardHtml({
+              status: arenaStatus,
+              remainingSeconds,
+              players: arenaPlayers,
+              attackTraces: arenaTraces,
+            })}
+          </div>
+          <!-- Center: 200-Node Heatmap Radar (5 cols) -->
+          <div class="xl:col-span-5 flex flex-col min-h-[500px]">
+            ${renderMeshRadar200Html({
+              nodes: arenaNodes,
+              activeFilter: props.arenaActiveFilter,
+              selectedNodeId: props.arenaSelectedNodeId,
+            })}
+          </div>
+          <!-- Right: Attacker Kali Terminal for Command Input (3 cols) -->
+          <div class="xl:col-span-3 flex flex-col min-h-[500px]">
+            ${renderTwinTerminalHtml({ role: "attacker", className: "h-full", activeRefTab })}
+          </div>
+        </main>
+      `;
+    }
   } else {
     mainContentHtml = `
       <main class="flex-1 flex flex-col gap-3 p-3 min-h-0 overflow-y-auto">
@@ -167,7 +237,7 @@ export function renderAppHtml(props = {}) {
         </div>
 
         <div class="flex-1 min-h-[300px]">
-          ${renderTwinTerminalHtml({ role: "both", className: "h-full" })}
+          ${renderTwinTerminalHtml({ role: "both", className: "h-full", activeRefTab })}
         </div>
       </main>
     `;
@@ -197,4 +267,12 @@ export function renderAppHtml(props = {}) {
   `;
 }
 
-export default renderAppHtml;
+export function App(props) {
+  return {
+    type: "App",
+    props,
+    renderHtml: () => renderAppHtml(props),
+  };
+}
+
+export default App;

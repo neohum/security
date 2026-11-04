@@ -10,6 +10,11 @@ import { PtyManager, type ISocket } from "./pty-manager.ts";
 import { TrafficMonitor } from "./traffic-monitor.ts";
 import { ScenarioState } from "./scenario-state.ts";
 import { getAllMissions, getMissionById, evaluateFlag, evaluateCommand, evaluateSubmission } from "./mission-evaluator.ts";
+import { evaluateTutorialQuest, evaluateAdvancedCommand } from "./scenario-missions.ts";
+import { MockInternetMesh } from "./mock-internet-mesh.ts";
+import { ArenaManager } from "./arena-manager.ts";
+import { ArenaSshServer } from "./arena-ssh-server.ts";
+import { ArenaScriptRunner } from "./arena-script-runner.ts";
 
 /**
  * Minimal RFC 6455 WebSocket implementation on top of node:net.Socket.
@@ -24,6 +29,9 @@ export class NativeWebSocket extends EventEmitter implements ISocket {
     super();
     this.socket = socket;
 
+    // Suppress default unhandled exception crashes on ECONNRESET / EPIPE
+    this.on("error", () => {});
+
     socket.on("data", (chunk: Buffer) => {
       this.buffer = Buffer.concat([this.buffer, chunk]);
       this.parseFrames();
@@ -36,7 +44,10 @@ export class NativeWebSocket extends EventEmitter implements ISocket {
 
     socket.on("error", (err: Error) => {
       this.readyState = 3;
-      this.emit("error", err);
+      try {
+        socket.destroy();
+      } catch {}
+      this.emit("close");
     });
   }
 
@@ -190,23 +201,107 @@ export class GatewayApp {
   public ptyManager: PtyManager;
   public trafficMonitor: TrafficMonitor;
   public scenarioState: ScenarioState;
+  public mockMesh: MockInternetMesh;
+  public arenaManager: ArenaManager;
+  public scriptRunner: ArenaScriptRunner;
+  public sshServer: ArenaSshServer;
   public server: http.Server;
   private routes: Array<{ method: string; path: RegExp; handler: Function }> = [];
   private openSockets = new Set<net.Socket>();
+  private arenaSockets = new Set<NativeWebSocket>();
 
-  constructor(options?: { port?: number; hostIp?: string }) {
-    this.lanManager = new LanManager({ port: options?.port, hostIp: options?.hostIp });
+  constructor(options?: { port?: number; hostIp?: string; sshPort?: number }) {
+    this.lanManager = new LanManager({ port: options?.port, hostIp: options?.hostIp, sshPort: options?.sshPort });
     this.ptyManager = new PtyManager();
     this.trafficMonitor = new TrafficMonitor();
     this.scenarioState = new ScenarioState();
+    this.mockMesh = new MockInternetMesh();
+    this.arenaManager = new ArenaManager(this.mockMesh);
+    this.scriptRunner = new ArenaScriptRunner(this.mockMesh, this.arenaManager);
+    this.sshServer = new ArenaSshServer({
+      port: options?.sshPort || this.lanManager.sshPort || 2222,
+      host: options?.hostIp || "0.0.0.0",
+      arenaManager: this.arenaManager,
+      mockMesh: this.mockMesh,
+      lanManager: this.lanManager,
+    });
 
     this.server = http.createServer((req, res) => this.handleHttpRequest(req, res));
     this.server.on("connection", (sock: net.Socket) => {
       this.openSockets.add(sock);
       sock.on("close", () => this.openSockets.delete(sock));
     });
+    this.setupArenaEvents();
     this.bindWebSocketUpgrades();
     this.setupRoutes();
+  }
+
+  private broadcastArena(payload: any) {
+    const msg = JSON.stringify(payload);
+    for (const ws of this.arenaSockets) {
+      if (ws.readyState === 1) {
+        ws.send(msg);
+      }
+    }
+  }
+
+  private setupArenaEvents() {
+    this.arenaManager.on("player:joined", (player) => {
+      this.broadcastArena({
+        type: "player:joined",
+        player,
+        players: this.arenaManager.getPlayers(),
+      });
+    });
+
+    this.arenaManager.on("match:started", () => {
+      this.broadcastArena({
+        type: "match:started",
+        remainingSeconds: this.arenaManager.getTimeRemaining(),
+        duration: this.arenaManager.getDuration(),
+      });
+    });
+
+    this.arenaManager.on("match:tick", (remainingSeconds) => {
+      this.broadcastArena({
+        type: "match:tick",
+        remainingSeconds,
+      });
+    });
+
+    this.arenaManager.on("match:finished", (data) => {
+      this.broadcastArena({
+        type: "match:finished",
+        leaderboard: data.leaderboard,
+        finalTrace: data.finalTrace,
+        hallOfFame: data.hallOfFame,
+      });
+    });
+
+    this.arenaManager.on("attack:compromised", (event) => {
+      this.broadcastArena({
+        type: "attack:compromised",
+        event,
+        leaderboard: this.arenaManager.getLeaderboard(),
+        nodeStates: this.arenaManager.getNodeStateMap(),
+      });
+    });
+
+    this.arenaManager.on("node:updated", (data) => {
+      this.broadcastArena({
+        type: "node:updated",
+        ip: data.ip,
+        nodeState: data.nodeState,
+      });
+    });
+
+    this.arenaManager.on("match:reset", () => {
+      this.broadcastArena({
+        type: "match:reset",
+        state: this.arenaManager.getLobbyState(),
+        remainingSeconds: this.arenaManager.getDuration(),
+      });
+    });
   }
 
   public get(pathPattern: string, handler: (req: any, res: any) => void) {
@@ -255,24 +350,52 @@ export class GatewayApp {
 
     // API: Evaluate mission flag or command
     this.post("/api/missions/evaluate", (req, res) => {
-      const { missionId, flag, command, stdout } = req.body || {};
+      const body = req.body;
+      if (!body || typeof body !== "object" || Object.keys(body).length === 0) {
+        res.status(400).json({ error: "Missing or empty request body" });
+        return;
+      }
+      const { missionId, flag, command, stdout } = body;
       if (missionId && (flag || command)) {
-        const result = evaluateSubmission(missionId, flag || command);
+        let result = evaluateSubmission(missionId, flag || command);
+        if (!result.matched) {
+          result = evaluateTutorialQuest(missionId, flag || command, stdout);
+        }
         res.json(result);
       } else if (flag) {
         const result = evaluateFlag(flag);
         res.json(result);
       } else if (command) {
-        const results = evaluateCommand(command, stdout);
+        let results = evaluateCommand(command, stdout);
+        if (results.length === 0) {
+          results = evaluateAdvancedCommand(command, stdout);
+        }
         res.json(results);
       } else {
         res.status(400).json({ error: "Missing missionId, flag, or command" });
       }
     });
 
+    // API: Evaluate scenario command or terminal output
+    this.post("/api/scenario/evaluate", (req, res) => {
+      const body = req.body || {};
+      const { command, stdout, role = "attacker" } = body;
+      if (!command && !stdout) {
+        res.status(400).json({ error: "Missing command or stdout in request body" });
+        return;
+      }
+      const outcome = this.scenarioState.evaluateCommand(command || "", stdout || "", role as Role);
+      res.json(outcome);
+    });
+
     // API: Submit flag
     this.post("/api/scenario/flag", (req, res) => {
-      const { flag, role = "attacker" } = req.body || {};
+      const body = req.body;
+      if (!body || typeof body !== "object" || Object.keys(body).length === 0 || !body.flag || typeof body.flag !== "string" || !body.flag.trim()) {
+        res.status(400).json({ success: false, error: "Missing or invalid flag in request body", message: "플래그가 비어있습니다.", pointsAwarded: 0 });
+        return;
+      }
+      const { flag, role = "attacker" } = body;
       const result = this.scenarioState.submitFlag(flag, role as Role);
       res.status(result.success ? 200 : 400).json(result);
     });
@@ -295,6 +418,186 @@ export class GatewayApp {
       res.json({ success: true, event });
     });
 
+    // API: Arena state
+    this.get("/api/arena/state", (_req, res) => {
+      res.json({
+        lobbyState: this.arenaManager.getLobbyState(),
+        duration: this.arenaManager.getDuration(),
+        timeRemaining: this.arenaManager.getTimeRemaining(),
+        players: this.arenaManager.getPlayers(),
+        leaderboard: this.arenaManager.getLeaderboard(),
+        recentAttacks: this.arenaManager.getRecentAttackTraces(25),
+        nodeStates: this.arenaManager.getNodeStateMap(),
+        vulnerableCount: this.mockMesh.getVulnerableNodes().length,
+        totalNodes: this.mockMesh.getAllNodes().length,
+        hallOfFame: this.arenaManager.getHallOfFame(),
+      });
+    });
+
+    // API: Arena join
+    this.post("/api/arena/join", (req, res) => {
+      const body = req.body;
+      if (!body || typeof body !== "object" || Object.keys(body).length === 0 || !body.nickname || typeof body.nickname !== "string" || !body.nickname.trim()) {
+        res.status(400).json({ error: "Nickname is required" });
+        return;
+      }
+      try {
+        const player = this.arenaManager.registerPlayer(body);
+        res.json({ success: true, player });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // API: Arena start
+    this.post("/api/arena/start", (_req, res) => {
+      try {
+        this.arenaManager.startMatch();
+        res.json({ success: true, state: this.arenaManager.getLobbyState() });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // API: Arena reset
+    this.post("/api/arena/reset", (_req, res) => {
+      this.arenaManager.resetMatch();
+      res.json({ success: true, state: this.arenaManager.getLobbyState() });
+    });
+
+    // API: Arena evaluate command/output
+    this.post("/api/arena/evaluate", async (req, res) => {
+      const body = req.body;
+      if (!body || typeof body !== "object" || Object.keys(body).length === 0) {
+        res.status(400).json({ error: "Missing or empty request body" });
+        return;
+      }
+      const { playerId, command, stdout } = body;
+      const targetPlayerId = playerId || (this.arenaManager.getPlayers()[0]?.id ?? "guest");
+      const cmdStr = (typeof command === "string" ? command : typeof stdout === "string" ? stdout : "").trim();
+
+      if (!cmdStr) {
+        res.status(400).json({ error: "Missing command or stdout" });
+        return;
+      }
+
+      // Check if this is an automation script / bash loop
+      if (this.scriptRunner.isScriptCommand(cmdStr)) {
+        const scriptRes = await this.scriptRunner.execute(cmdStr, targetPlayerId);
+        if (scriptRes.handled) {
+          res.json({
+            success: true,
+            isScript: true,
+            output: scriptRes.output,
+            totalScoreGained: scriptRes.totalScoreGained,
+          });
+          return;
+        }
+      }
+
+      const outcome = this.arenaManager.evaluateCommand(targetPlayerId, cmdStr);
+      res.json(outcome);
+    });
+
+    // API: Programmatic probing endpoint for Python / Bash recon scripts
+    this.get("/api/arena/probe", (req, res) => {
+      const query = (req as any).query || {};
+      const ip = query.ip;
+      if (!ip || typeof ip !== "string" || !ip.trim()) {
+        res.status(400).json({ error: "Missing required query parameter: ip" });
+        return;
+      }
+
+      const cleanIp = ip.trim();
+      const node = this.mockMesh.getNodeByIp(cleanIp);
+      if (!node) {
+        res.status(404).json({ error: "Host unreachable", ip: cleanIp });
+        return;
+      }
+
+      const service = (query.service || "whois").toLowerCase().trim();
+      const port = Number(query.port) || 80;
+
+      if (service === "whois") {
+        const result = this.mockMesh.queryWhois(cleanIp);
+        res.json({
+          ip: cleanIp,
+          service: "whois",
+          vulnerable: node.isVulnerable && node.category === "whois",
+          adminEmail: node.isVulnerable ? "admin@mega-infra.net" : "privacy-guard@icann.org",
+          cidr: "10.10.1.0/24",
+          flag: node.isVulnerable && node.category === "whois" ? node.flag : undefined,
+          output: result.output,
+        });
+      } else if (service === "dns-axfr" || service === "dns") {
+        const result = this.mockMesh.queryDnsAxfr(cleanIp, "mega-infra.net");
+        res.json({
+          ip: cleanIp,
+          service: "dns-axfr",
+          vulnerable: node.isVulnerable && node.category === "dns-axfr",
+          flag: node.isVulnerable && node.category === "dns-axfr" ? node.flag : undefined,
+          output: result.output,
+        });
+      } else if (service === "nmap" || service === "port") {
+        const result = this.mockMesh.scanPort(cleanIp, port);
+        res.json({
+          ip: cleanIp,
+          service: "nmap",
+          port,
+          open: result.open,
+          vulnerable: result.vulnerable,
+          banner: result.banner,
+        });
+      } else if (service === "mssql") {
+        const result = this.mockMesh.attemptMssqlLogin(cleanIp, query.user || "sa", query.pass || "Password123!");
+        res.json({
+          ip: cleanIp,
+          service: "mssql",
+          vulnerable: result.success,
+          flag: result.flag,
+          output: result.output,
+        });
+      } else if (service === "s3") {
+        const result = this.mockMesh.accessS3Bucket(cleanIp, query.bucket || "config.env");
+        res.json({
+          ip: cleanIp,
+          service: "s3",
+          vulnerable: result.success,
+          flag: result.flag,
+          output: result.output,
+        });
+      } else {
+        res.status(400).json({ error: "Unknown service", service });
+      }
+    });
+
+    // API: 200 Virtual Internet Nodes
+    this.get("/api/arena/nodes", (req, res) => {
+      const category = (req as any).query?.category;
+      if (category && category !== "all") {
+        res.json(this.mockMesh.getVulnerableNodesByCategory(category));
+      } else {
+        res.json(this.mockMesh.getAllNodes());
+      }
+    });
+
+    // Route: /arena directly serves the CTF competition portal
+    this.get("/arena", (_req, res) => {
+      const clientIndex = path.resolve(process.cwd(), "client/index.html");
+      const distIndex = path.resolve(process.cwd(), "client/dist/index.html");
+      if (fs.existsSync(clientIndex)) {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(fs.readFileSync(clientIndex));
+        return;
+      }
+      if (fs.existsSync(distIndex)) {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(fs.readFileSync(distIndex));
+        return;
+      }
+      res.status(404).json({ error: "Client index not found" });
+    });
+
     // Root portal page & client app
     this.get("/", (req, res) => {
       const role = (req as any).query?.role;
@@ -302,7 +605,7 @@ export class GatewayApp {
       const distIndex = path.resolve(process.cwd(), "client/dist/index.html");
 
       // When a specific role is requested, serve the interactive SPA console
-      if (role && (role === "attacker" || role === "defender" || role === "observer")) {
+      if (role && (role === "attacker" || role === "defender" || role === "observer" || role === "arena")) {
         if (fs.existsSync(clientIndex)) {
           res.setHeader("Content-Type", "text/html; charset=utf-8");
           res.end(fs.readFileSync(clientIndex));
@@ -357,7 +660,23 @@ export class GatewayApp {
 
       for (const route of this.routes) {
         if (route.method === method && route.path.test(pathname)) {
-          return route.handler(req, res);
+          try {
+            const ret = route.handler(req, res);
+            if (ret && typeof ret.catch === "function") {
+              ret.catch((err: any) => {
+                if (!res.headersSent) {
+                  res.statusCode = 500;
+                  (res as any).json({ error: "Internal Server Error", message: err?.message || String(err) });
+                }
+              });
+            }
+          } catch (err: any) {
+            if (!res.headersSent) {
+              res.statusCode = 500;
+              (res as any).json({ error: "Internal Server Error", message: err?.message || String(err) });
+            }
+          }
+          return;
         }
       }
 
@@ -399,17 +718,61 @@ export class GatewayApp {
 
       const ws = handleUpgradeHandshake(req, socket);
       if (!ws) return;
+      ws.on("error", () => {});
 
       const forceMock = parsedUrl.searchParams.get("mock") === "true" || process.env.SIM_FORCE_MOCK === "true";
 
       if (pathname === "/ws/terminal/attacker") {
-        this.ptyManager.attachWebSocket(ws, "attacker", { forceMock });
+        this.ptyManager.attachWebSocket(ws, "attacker", { forceMock }).then((session) => {
+          session.onData((data: string) => {
+            try {
+              this.scenarioState.evaluateCommand("", data, "attacker");
+            } catch {}
+          });
+        });
       } else if (pathname === "/ws/terminal/defender") {
         this.ptyManager.attachWebSocket(ws, "defender", { forceMock });
       } else if (pathname === "/ws/events") {
         this.trafficMonitor.subscribe(ws);
       } else if (pathname === "/ws/scenario") {
         this.scenarioState.subscribe(ws);
+      } else if (pathname === "/ws/arena") {
+        this.arenaSockets.add(ws);
+        ws.on("close", () => this.arenaSockets.delete(ws));
+
+        // Send initial state immediately
+        ws.send(
+          JSON.stringify({
+            type: "init",
+            state: {
+              lobbyState: this.arenaManager.getLobbyState(),
+              duration: this.arenaManager.getDuration(),
+              timeRemaining: this.arenaManager.getTimeRemaining(),
+              players: this.arenaManager.getPlayers(),
+              leaderboard: this.arenaManager.getLeaderboard(),
+              recentAttacks: this.arenaManager.getRecentAttackTraces(25),
+              nodeStates: this.arenaManager.getNodeStateMap(),
+              hallOfFame: this.arenaManager.getHallOfFame(),
+            },
+          })
+        );
+
+        ws.on("message", (msgStr: string) => {
+          try {
+            const data = JSON.parse(msgStr);
+            if (data.action === "join") {
+              const player = this.arenaManager.registerPlayer(data);
+              ws.send(JSON.stringify({ type: "player:registered", player }));
+            } else if (data.action === "start") {
+              this.arenaManager.startMatch();
+            } else if (data.action === "reset") {
+              this.arenaManager.resetMatch();
+            } else if (data.action === "evaluate") {
+              const outcome = this.arenaManager.evaluateCommand(data.playerId, data.command || data.stdout || "");
+              ws.send(JSON.stringify({ type: "eval:result", outcome }));
+            }
+          } catch {}
+        });
       } else {
         ws.close(1008, "Unknown WebSocket path");
       }
@@ -532,10 +895,17 @@ export class GatewayApp {
         </div>
         <a href="${summary.urls.observer}" class="btn observer">관제자 접속하기</a>
       </div>
+      <div class="role-card">
+        <div>
+          <h3>🏁 CTF 아레나 (Arena)</h3>
+          <p>200개 노드 가상 인터넷 침투 경진대회 및 실시간 순위표</p>
+        </div>
+        <a href="/arena" class="btn" style="background:#0891b2;">대회장 입장하기</a>
+      </div>
     </div>
     <div class="info-box">
       <div class="info-row"><span>게이트웨이 포트:</span><code>0.0.0.0:${summary.port}</code></div>
-      <div class="info-row"><span>외부 SSH 접속 포트:</span><code>ssh -p ${summary.sshPort} root@${summary.hostIp}</code></div>
+      <div class="info-row"><span>외부 SSH 접속:</span><code>ssh -p ${summary.sshPort} {닉네임}@${summary.hostIp}</code></div>
       <div class="info-row"><span>탐지된 호스트 IP:</span><code>${summary.hostIp}</code></div>
     </div>
   </div>
@@ -543,8 +913,8 @@ export class GatewayApp {
 </html>`;
   }
 
-  public listen(port = 3000, host = "0.0.0.0"): Promise<number> {
-    return new Promise((resolve) => {
+  public async listen(port = 3000, host = "0.0.0.0", sshPort?: number): Promise<number> {
+    const actualHttpPort = await new Promise<number>((resolve) => {
       this.server.listen(port, host, () => {
         const addr = this.server.address();
         const actualPort = typeof addr === "object" && addr ? addr.port : port;
@@ -552,10 +922,33 @@ export class GatewayApp {
         resolve(actualPort);
       });
     });
+
+    const targetSshPort = sshPort !== undefined ? sshPort : (this.lanManager.sshPort || 2222);
+    if (targetSshPort > 0) {
+      try {
+        await this.sshServer.listen(targetSshPort, host);
+        this.lanManager.sshPort = this.sshServer.port;
+      } catch (err: any) {
+        console.warn(`[SSH Server] Could not bind on port ${targetSshPort}: ${err.message}`);
+      }
+    }
+
+    return actualHttpPort;
   }
 
-  public close(): Promise<void> {
+  public async close(): Promise<void> {
+    try {
+      await this.sshServer.close();
+    } catch {}
+
     return new Promise((resolve) => {
+      this.arenaManager.destroy();
+      for (const ws of this.arenaSockets) {
+        try {
+          ws.close();
+        } catch {}
+      }
+      this.arenaSockets.clear();
       this.ptyManager.closeAll();
       this.trafficMonitor.stopAutoSimulation();
       for (const sock of this.openSockets) {
@@ -575,8 +968,8 @@ export class GatewayApp {
 /**
  * Factory function to create and optionally start the gateway.
  */
-export function createGatewayServer(port = 3000, hostIp?: string): GatewayApp {
-  return new GatewayApp({ port, hostIp });
+export function createGatewayServer(port = 3000, hostIp?: string, sshPort?: number): GatewayApp {
+  return new GatewayApp({ port, hostIp, sshPort });
 }
 
 export const defaultApp = new GatewayApp();
@@ -595,7 +988,8 @@ if (isMain) {
     console.log(`🔴 Attacker    : ${summary.urls.attacker}`);
     console.log(`🛡️ Defender    : ${summary.urls.defender}`);
     console.log(`👁️ Observer    : ${summary.urls.observer}`);
-    console.log(`💻 Direct SSH  : ssh -p ${summary.sshPort} root@${summary.hostIp}`);
+    console.log(`🏁 CTF Arena   : http://${summary.hostIp}:${actualPort}/arena`);
+    console.log(`💻 Direct SSH  : ssh -p ${summary.sshPort} {참가자닉네임}@${summary.hostIp}`);
     console.log(`======================================================\n`);
   });
 }
