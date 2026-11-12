@@ -218,4 +218,176 @@ describe("Step 5: Arena SSH Server & Native Terminal Gateway", () => {
     assert.ok(html.includes("ssh -p 2222 ViperZero@192.168.1.112"), "Must format SSH command with nickname and host");
     assert.ok(html.includes("btn-copy-ssh-cmd"), "Must provide SSH copy button");
   });
+
+  it("AC-4: SSH terminal launches nano editor, writes shell script, saves (Ctrl+O) and exits (Ctrl+X)", async () => {
+    const client = new ssh2.Client();
+
+    await new Promise<void>((resolve, reject) => {
+      client.on("ready", () => {
+        client.shell({ term: "xterm-256color", cols: 80, rows: 24 }, (err, stream) => {
+          if (err) return reject(err);
+
+          let output = "";
+          let stage = 0;
+
+          stream.on("data", (chunk: Buffer) => {
+            output += chunk.toString("utf-8");
+
+            // Stage 0: Wait for initial prompt, then launch nano
+            if (stage === 0 && output.includes("root@kalibox-NanoTester:~#")) {
+              stage = 1;
+              output = "";
+              stream.write("nano my_custom_scan.sh\r");
+            }
+
+            // Stage 1: Verify nano banner is displayed, type script and save with Ctrl+O
+            if (stage === 1 && output.includes("GNU nano 7.2") && output.includes("my_custom_scan.sh")) {
+              stage = 2;
+              output = "";
+              // Type script: echo HelloFromNano, then save (Ctrl+O: \x0f)
+              stream.write("#!/bin/bash\rwhois 10.10.1.15\r\x0f");
+            }
+
+            // Stage 2: Verify save notification, then exit with Ctrl+X (\x18)
+            if (stage === 2 && (output.includes("[ Wrote") || output.includes("lines"))) {
+              stage = 3;
+              output = "";
+              stream.write("\x18");
+            }
+
+            // Stage 3: Verify nano closed and returned to shell prompt
+            if (stage === 3 && output.includes("nano: closed") && output.includes("root@kalibox-NanoTester:~#")) {
+              const player = arena.getPlayerByNickname("NanoTester");
+              assert.ok(player, "Player must exist");
+              const saved = sshServer["scriptRunner"].getUserFileContent(player.id, "my_custom_scan.sh");
+              assert.ok(saved, "File must be saved in user files");
+              assert.ok(saved.includes("whois 10.10.1.15"), "File content must match typed text");
+              client.end();
+              resolve();
+            }
+          });
+
+          stream.on("error", reject);
+        });
+      });
+
+      client.on("error", reject);
+
+      client.connect({
+        host: "127.0.0.1",
+        port: sshPort,
+        username: "NanoTester",
+        password: "ctf",
+      });
+    });
+  });
+
+  it("AC-5: SSH terminal launches vi editor, inserts text, saves and quits with :wq", async () => {
+    const client = new ssh2.Client();
+
+    await new Promise<void>((resolve, reject) => {
+      client.on("ready", () => {
+        client.shell({ term: "xterm-256color", cols: 80, rows: 24 }, (err, stream) => {
+          if (err) return reject(err);
+
+          let output = "";
+          let stage = 0;
+
+          stream.on("data", (chunk: Buffer) => {
+            output += chunk.toString("utf-8");
+
+            // Stage 0: Wait for initial prompt, then launch vi
+            if (stage === 0 && output.includes("root@kalibox-ViTester:~#")) {
+              stage = 1;
+              output = "";
+              stream.write("vi vi_sweep.sh\r");
+            }
+
+            // Stage 1: Verify vi screen rendered, press 'i' for insert mode
+            if (stage === 1 && (output.includes("vi_sweep.sh") || output.includes("~"))) {
+              stage = 2;
+              output = "";
+              // Press 'i' (insert mode), type content, Esc (\x1b), then :wq\r
+              stream.write("ifor i in {1..200}; do whois 10.10.1.$i; done\x1b:wq\r");
+            }
+
+            // Stage 2: Verify vi exited and prompt returned
+            if (stage === 2 && output.includes("vi: saved and closed") && output.includes("root@kalibox-ViTester:~#")) {
+              const player = arena.getPlayerByNickname("ViTester");
+              assert.ok(player, "Player must exist");
+              const saved = sshServer["scriptRunner"].getUserFileContent(player.id, "vi_sweep.sh");
+              assert.ok(saved, "File must be saved in user files");
+              assert.ok(saved.includes("for i in {1..200}"), "Saved content must contain loop code");
+              client.end();
+              resolve();
+            }
+          });
+
+          stream.on("error", reject);
+        });
+      });
+
+      client.on("error", reject);
+
+      client.connect({
+        host: "127.0.0.1",
+        port: sshPort,
+        username: "ViTester",
+        password: "ctf",
+      });
+    });
+  });
+
+  it("AC-6: SSH terminal executes pasted multi-line bash loop script and outputs vulnerable targets", async () => {
+    const client = new ssh2.Client();
+
+    await new Promise<void>((resolve, reject) => {
+      client.on("ready", () => {
+        client.shell({ term: "xterm-256color", cols: 80, rows: 24 }, (err, stream) => {
+          if (err) return reject(err);
+
+          let output = "";
+          let stage = 0;
+
+          stream.on("data", (chunk: Buffer) => {
+            output += chunk.toString("utf-8");
+
+            if (stage === 0 && output.includes("root@kalibox-PasteTester:~#")) {
+              stage = 1;
+              output = "";
+              // Send multiline script paste
+              const multilineScript =
+                '#!/bin/bash\n' +
+                'echo "[*] 200 nodes scan..."\n' +
+                'for i in $(seq 1 200); do\n' +
+                '    ip="10.10.1.$i"\n' +
+                '    res=$(whois "$ip" 2>/dev/null)\n' +
+                '    if ! echo "$res" | grep -q "REDACTED_FOR_PRIVACY"; then\n' +
+                '        echo "[+] Found: $ip"\n' +
+                '    fi\n' +
+                'done\n';
+              stream.write(multilineScript);
+            }
+
+            if (stage === 1 && (output.includes("VULNERABLE TARGET") || output.includes("10.10.1.25") || output.includes("Bash Loop Complete"))) {
+              assert.ok(output.includes("10.10.1.25"), "Must discover vulnerable whois node in mesh");
+              client.end();
+              resolve();
+            }
+          });
+
+          stream.on("error", reject);
+        });
+      });
+
+      client.on("error", reject);
+
+      client.connect({
+        host: "127.0.0.1",
+        port: sshPort,
+        username: "PasteTester",
+        password: "ctf",
+      });
+    });
+  });
 });
