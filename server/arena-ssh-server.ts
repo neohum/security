@@ -4,11 +4,13 @@
 
 import { EventEmitter } from "node:events";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import ssh2, { type Server, type Connection, type ServerChannel } from "ssh2";
 import type { ArenaManager, Player, EvaluationOutcome } from "./arena-manager.ts";
 import type { MockInternetMesh } from "./mock-internet-mesh.ts";
 import type { LanManager } from "./lan-manager.ts";
-import { ArenaScriptRunner } from "./arena-script-runner.ts";
+import { ArenaScriptRunner, EMBEDDED_TOOLKIT_FILES } from "./arena-script-runner.ts";
 
 export interface ArenaSshServerOptions {
   port?: number;
@@ -40,16 +42,27 @@ export class ArenaSshServer extends EventEmitter {
     this.lanManager = options.lanManager;
     this.scriptRunner = new ArenaScriptRunner(this.mockMesh, this.arenaManager);
 
-    // Generate or use provided RSA 2048-bit Host Key for zero-config SSH
+    // Generate, reuse, or use provided RSA 2048-bit Host Key for zero-config SSH
     if (options.hostKeyPem) {
       this.hostKey = options.hostKeyPem;
     } else {
-      const { privateKey } = crypto.generateKeyPairSync("rsa", {
-        modulusLength: 2048,
-        publicKeyEncoding: { type: "pkcs1", format: "pem" },
-        privateKeyEncoding: { type: "pkcs1", format: "pem" },
-      });
-      this.hostKey = privateKey;
+      const keyPath = path.resolve(process.cwd(), ".arena_ssh_host_key");
+      if (fs.existsSync(keyPath)) {
+        try {
+          this.hostKey = fs.readFileSync(keyPath, "utf-8");
+        } catch {}
+      }
+      if (!this.hostKey) {
+        const { privateKey } = crypto.generateKeyPairSync("rsa", {
+          modulusLength: 2048,
+          publicKeyEncoding: { type: "pkcs1", format: "pem" },
+          privateKeyEncoding: { type: "pkcs1", format: "pem" },
+        });
+        this.hostKey = privateKey;
+        try {
+          fs.writeFileSync(keyPath, privateKey, { mode: 0o600 });
+        } catch {}
+      }
     }
 
     this.server = new ssh2.Server({ hostKeys: [this.hostKey] }, (client, info) => {
@@ -164,17 +177,32 @@ export class ArenaSshServer extends EventEmitter {
     client.on("session", (accept, _reject) => {
       const session = accept();
 
-      session.on("pty", (acceptPty, _rejectPty, _info) => {
+      let ptyCols = 80;
+      let ptyRows = 24;
+      let onResize: ((rows: number, cols: number) => void) | null = null;
+
+      session.on("pty", (acceptPty, _rejectPty, info) => {
+        if (info) {
+          if (info.cols) ptyCols = info.cols;
+          if (info.rows) ptyRows = info.rows;
+        }
         acceptPty();
       });
 
-      session.on("window-change", (acceptWin, _rejectWin, _info) => {
+      session.on("window-change", (acceptWin, _rejectWin, info) => {
+        if (info) {
+          if (info.cols) ptyCols = info.cols;
+          if (info.rows) ptyRows = info.rows;
+          if (onResize) onResize(ptyRows, ptyCols);
+        }
         if (acceptWin) acceptWin();
       });
 
       session.on("shell", (acceptShell, _rejectShell) => {
         const stream = acceptShell();
-        this.runInteractiveShell(stream, player, clientIp);
+        this.runInteractiveShell(stream, player, clientIp, ptyRows, ptyCols, (cb) => {
+          onResize = cb;
+        });
       });
 
       session.on("exec", (acceptExec, _rejectExec, info) => {
@@ -237,7 +265,14 @@ export class ArenaSshServer extends EventEmitter {
     });
   }
 
-  private runInteractiveShell(stream: ServerChannel, player: Player, clientIp: string): void {
+  private runInteractiveShell(
+    stream: ServerChannel,
+    player: Player,
+    clientIp: string,
+    initialRows = 24,
+    initialCols = 80,
+    registerResize?: (cb: (rows: number, cols: number) => void) => void
+  ): void {
     const hostIp = this.lanManager?.hostIp || "127.0.0.1";
     const webPort = this.lanManager?.port || 3000;
 
@@ -267,7 +302,7 @@ export class ArenaSshServer extends EventEmitter {
         `\x1b[33m[+] 실시간 웹 전광판: \x1b[4;34mhttp://${hostIp}:${webPort}/arena\x1b[0m\r\n` +
         "\x1b[36m--------------------------------------------------------------------------------\x1b[0m\r\n" +
         "\x1b[90m[*] 터미널에서 입력한 공격 명령어는 실시간으로 자동 분석 및 채점됩니다.\x1b[0m\r\n" +
-        "\x1b[90m[*] 주요 도구: whois, dig, nmap, msfconsole, score, status, help, exit\x1b[0m\r\n" +
+        "\x1b[90m[*] 주요 도구: whois, dig, nmap, nano, vi, msfconsole, score, status, help, exit\x1b[0m\r\n" +
         "\x1b[36m--------------------------------------------------------------------------------\x1b[0m\r\n"
       );
     };
@@ -278,6 +313,608 @@ export class ArenaSshServer extends EventEmitter {
     stream.write(renderBanner());
     stream.write(promptStr);
 
+    let ptyRows = initialRows;
+    let ptyCols = initialCols;
+    let activeEditor: EditorSession | null = null;
+    let inEditorEscape = false;
+    let editorEscapeBuffer = "";
+
+    if (registerResize) {
+      registerResize((newRows, newCols) => {
+        ptyRows = newRows;
+        ptyCols = newCols;
+        if (activeEditor) {
+          activeEditor.rows = newRows;
+          activeEditor.cols = newCols;
+          renderEditor();
+        }
+      });
+    }
+
+    const openEditor = (type: "nano" | "vi", rawTarget: string | undefined) => {
+      let filename = (rawTarget || "")
+        .trim()
+        .replace(/^['"]|['"]$/g, "")
+        .replace(/^(\/root\/tools\/|\/root\/|\.\/|tools\/)/, "")
+        .trim();
+      if (!filename) {
+        filename = "script.sh";
+      }
+
+      let initialContent = this.scriptRunner.getUserFileContent(player.id, filename);
+      if (initialContent === undefined) {
+        initialContent = EMBEDDED_TOOLKIT_FILES[filename]?.content;
+      }
+
+      let lines: string[] = [];
+      if (initialContent !== undefined && initialContent.length > 0) {
+        lines = initialContent.split(/\r?\n/);
+      } else {
+        lines = [""];
+      }
+
+      activeEditor = {
+        type,
+        filename,
+        lines,
+        cursorRow: 0,
+        cursorCol: 0,
+        scrollRow: 0,
+        modified: false,
+        viMode: "normal",
+        commandText: "",
+        statusMessage: initialContent !== undefined ? `[ Read ${lines.length} lines ]` : `[ New File: ${filename} ]`,
+        cutBuffer: null,
+        lastNormalKey: "",
+        rows: ptyRows,
+        cols: ptyCols,
+      };
+
+      stream.write("\x1b[2J\x1b[H");
+      renderEditor();
+    };
+
+    const renderEditor = () => {
+      if (!activeEditor) return;
+      const {
+        type,
+        filename,
+        lines,
+        cursorRow,
+        cursorCol,
+        modified,
+        viMode,
+        commandText,
+        statusMessage,
+        rows,
+        cols,
+      } = activeEditor;
+
+      const contentHeight = type === "nano" ? Math.max(1, rows - 4) : Math.max(1, rows - 1);
+      if (activeEditor.cursorRow < activeEditor.scrollRow) {
+        activeEditor.scrollRow = activeEditor.cursorRow;
+      } else if (activeEditor.cursorRow >= activeEditor.scrollRow + contentHeight) {
+        activeEditor.scrollRow = activeEditor.cursorRow - contentHeight + 1;
+      }
+      const scrollRow = activeEditor.scrollRow;
+
+      let buf = "\x1b[?25l\x1b[H";
+
+      if (type === "nano") {
+        const mod = modified ? " *" : "";
+        const title = "GNU nano 7.2";
+        const fileLabel = `File: ${filename}${mod}`;
+        const centerPad = Math.max(2, Math.floor((cols - title.length - fileLabel.length) / 2));
+        const header = `  ${title}${" ".repeat(centerPad)}${fileLabel}`;
+        const paddedHeader = (header + " ".repeat(Math.max(0, cols - header.length))).slice(0, cols);
+        buf += `\x1b[7m${paddedHeader}\x1b[0m\r\n`;
+
+        for (let i = 0; i < contentHeight; i++) {
+          const lIdx = scrollRow + i;
+          const lineStr = lIdx < lines.length ? lines[lIdx] : "";
+          buf += `\x1b[K${lineStr.slice(0, cols)}\r\n`;
+        }
+
+        const st = statusMessage || (modified ? "[ Modified ]" : `[ Read ${lines.length} lines ]`);
+        const paddedSt = (st + " ".repeat(Math.max(0, cols - st.length))).slice(0, cols);
+        buf += `\x1b[K\x1b[1;33m${paddedSt}\x1b[0m\r\n`;
+
+        const foot1 = "^O WriteOut   ^R Read File  ^W Where Is   ^K Cut Line   ^C Cur Pos";
+        const foot2 = "^X Exit       ^J Justify    ^\\ Replace    ^U Paste Line ^G Help";
+        buf += `\x1b[7m${(foot1 + " ".repeat(Math.max(0, cols - foot1.length))).slice(0, cols)}\x1b[0m\r\n`;
+        buf += `\x1b[7m${(foot2 + " ".repeat(Math.max(0, cols - foot2.length))).slice(0, cols)}\x1b[0m`;
+
+        const screenRow = cursorRow - scrollRow + 2;
+        const screenCol = cursorCol + 1;
+        buf += `\x1b[${screenRow};${screenCol}H\x1b[?25h`;
+      } else {
+        for (let i = 0; i < contentHeight; i++) {
+          const lIdx = scrollRow + i;
+          if (lIdx < lines.length) {
+            buf += `\x1b[K${lines[lIdx].slice(0, cols)}\r\n`;
+          } else {
+            buf += `\x1b[34m~\x1b[0m\x1b[K\r\n`;
+          }
+        }
+
+        let st = "";
+        if (viMode === "insert") {
+          st = "\x1b[1m-- INSERT --\x1b[0m";
+        } else if (viMode === "command") {
+          st = `:${commandText}`;
+        } else {
+          st = statusMessage || `"${filename}" ${modified ? "[+]" : ""} ${lines.length}L, ${lines.join("\n").length}B`;
+        }
+        buf += `\x1b[K${st}`;
+
+        if (viMode === "command") {
+          buf += `\x1b[${rows};${commandText.length + 2}H\x1b[?25h`;
+        } else {
+          const screenRow = cursorRow - scrollRow + 1;
+          const screenCol = cursorCol + 1;
+          buf += `\x1b[${screenRow};${screenCol}H\x1b[?25h`;
+        }
+      }
+
+      stream.write(buf);
+    };
+
+    const exitEditor = (msg: string) => {
+      stream.write("\x1b[2J\x1b[H");
+      stream.write(msg);
+      activeEditor = null;
+      inEditorEscape = false;
+      editorEscapeBuffer = "";
+      stream.write(inMsfConsole ? msfPrompt : promptStr);
+    };
+
+    const processEditorChunk = (input: string) => {
+      if (!activeEditor) return;
+
+      for (let i = 0; i < input.length; i++) {
+        if (!activeEditor) break;
+        const ch = input[i];
+
+        // 1. In escape sequence
+        if (inEditorEscape) {
+          editorEscapeBuffer += ch;
+          const isCsi = editorEscapeBuffer.startsWith("\x1b[");
+          const isSs3 = editorEscapeBuffer.startsWith("\x1bO");
+          const isTerminated =
+            (isCsi && editorEscapeBuffer.length >= 3 && ch >= "@" && ch <= "~") ||
+            (isSs3 && editorEscapeBuffer.length >= 3) ||
+            editorEscapeBuffer.length >= 16;
+
+          if (isTerminated) {
+            inEditorEscape = false;
+            const seq = editorEscapeBuffer;
+            editorEscapeBuffer = "";
+
+            if (seq === "\x1b[A" || seq === "\x1bOA") {
+              if (activeEditor.cursorRow > 0) {
+                activeEditor.cursorRow--;
+                activeEditor.cursorCol = Math.min(activeEditor.cursorCol, activeEditor.lines[activeEditor.cursorRow].length);
+              }
+            } else if (seq === "\x1b[B" || seq === "\x1bOB") {
+              if (activeEditor.cursorRow < activeEditor.lines.length - 1) {
+                activeEditor.cursorRow++;
+                activeEditor.cursorCol = Math.min(activeEditor.cursorCol, activeEditor.lines[activeEditor.cursorRow].length);
+              }
+            } else if (seq === "\x1b[C" || seq === "\x1bOC") {
+              const curLen = activeEditor.lines[activeEditor.cursorRow].length;
+              if (activeEditor.cursorCol < curLen) {
+                activeEditor.cursorCol++;
+              } else if (activeEditor.cursorRow < activeEditor.lines.length - 1) {
+                activeEditor.cursorRow++;
+                activeEditor.cursorCol = 0;
+              }
+            } else if (seq === "\x1b[D" || seq === "\x1bOD") {
+              if (activeEditor.cursorCol > 0) {
+                activeEditor.cursorCol--;
+              } else if (activeEditor.cursorRow > 0) {
+                activeEditor.cursorRow--;
+                activeEditor.cursorCol = activeEditor.lines[activeEditor.cursorRow].length;
+              }
+            } else if (seq === "\x1b[H" || seq === "\x1b[1~" || seq === "\x1b[7~") {
+              activeEditor.cursorCol = 0;
+            } else if (seq === "\x1b[F" || seq === "\x1b[4~" || seq === "\x1b[8~") {
+              activeEditor.cursorCol = activeEditor.lines[activeEditor.cursorRow].length;
+            } else if (seq === "\x1b[3~") {
+              const curLine = activeEditor.lines[activeEditor.cursorRow];
+              if (activeEditor.cursorCol < curLine.length) {
+                activeEditor.lines[activeEditor.cursorRow] =
+                  curLine.slice(0, activeEditor.cursorCol) + curLine.slice(activeEditor.cursorCol + 1);
+                activeEditor.modified = true;
+              } else if (activeEditor.cursorRow < activeEditor.lines.length - 1) {
+                activeEditor.lines[activeEditor.cursorRow] += activeEditor.lines[activeEditor.cursorRow + 1];
+                activeEditor.lines.splice(activeEditor.cursorRow + 1, 1);
+                activeEditor.modified = true;
+              }
+            }
+          }
+          continue;
+        }
+
+        // 2. Escape character
+        if (ch === "\x1b") {
+          if (activeEditor.type === "vi" && (i === input.length - 1 || (input[i + 1] !== "[" && input[i + 1] !== "O"))) {
+            if (activeEditor.viMode === "insert") {
+              activeEditor.viMode = "normal";
+              activeEditor.cursorCol = Math.max(0, activeEditor.cursorCol - 1);
+              activeEditor.statusMessage = "";
+            } else if (activeEditor.viMode === "command") {
+              activeEditor.viMode = "normal";
+              activeEditor.commandText = "";
+              activeEditor.statusMessage = "";
+            }
+            continue;
+          }
+          inEditorEscape = true;
+          editorEscapeBuffer = "\x1b";
+          continue;
+        }
+
+        // 3. Nano mode input
+        if (activeEditor.type === "nano") {
+          if (ch === "\x18" || ch === "\x11") {
+            const saveNotice = activeEditor.modified ? " (buffer had unsaved edits)" : "";
+            exitEditor(`\x1b[1;32m[+] nano: closed '${activeEditor.filename}'${saveNotice}\x1b[0m\r\n`);
+            return;
+          }
+
+          if (ch === "\x0f" || ch === "\x13") {
+            const content = activeEditor.lines.join("\n");
+            this.scriptRunner.getUserFileMap(player.id).set(activeEditor.filename, content);
+            activeEditor.modified = false;
+            activeEditor.statusMessage = `[ Wrote ${activeEditor.lines.length} lines (${content.length} bytes) to ${activeEditor.filename} ]`;
+            continue;
+          }
+
+          if (ch === "\x03") {
+            activeEditor.statusMessage = `line ${activeEditor.cursorRow + 1}/${activeEditor.lines.length} (${Math.round(((activeEditor.cursorRow + 1) / activeEditor.lines.length) * 100)}%), col ${activeEditor.cursorCol + 1}`;
+            continue;
+          }
+
+          if (ch === "\x0b") {
+            activeEditor.cutBuffer = activeEditor.lines[activeEditor.cursorRow];
+            if (activeEditor.lines.length > 1) {
+              activeEditor.lines.splice(activeEditor.cursorRow, 1);
+              if (activeEditor.cursorRow >= activeEditor.lines.length) activeEditor.cursorRow = activeEditor.lines.length - 1;
+              activeEditor.cursorCol = Math.min(activeEditor.cursorCol, activeEditor.lines[activeEditor.cursorRow].length);
+            } else {
+              activeEditor.lines[0] = "";
+              activeEditor.cursorCol = 0;
+            }
+            activeEditor.modified = true;
+            activeEditor.statusMessage = "[ Cut 1 line ]";
+            continue;
+          }
+
+          if (ch === "\x15") {
+            if (activeEditor.cutBuffer !== null) {
+              activeEditor.lines.splice(activeEditor.cursorRow + 1, 0, activeEditor.cutBuffer);
+              activeEditor.cursorRow++;
+              activeEditor.cursorCol = 0;
+              activeEditor.modified = true;
+              activeEditor.statusMessage = "[ Pasted 1 line ]";
+            }
+            continue;
+          }
+
+          if (ch === "\r" || ch === "\n") {
+            if (lastWasCr && ch === "\n") {
+              lastWasCr = false;
+              continue;
+            }
+            lastWasCr = (ch === "\r");
+            const curLine = activeEditor.lines[activeEditor.cursorRow] ?? "";
+            const head = curLine.slice(0, activeEditor.cursorCol);
+            const tail = curLine.slice(activeEditor.cursorCol);
+            activeEditor.lines[activeEditor.cursorRow] = head;
+            activeEditor.lines.splice(activeEditor.cursorRow + 1, 0, tail);
+            activeEditor.cursorRow++;
+            activeEditor.cursorCol = 0;
+            activeEditor.modified = true;
+            continue;
+          }
+          lastWasCr = false;
+
+          if (ch === "\x7f" || ch === "\x08" || ch === "\b") {
+            if (activeEditor.cursorCol > 0) {
+              const curLine = activeEditor.lines[activeEditor.cursorRow];
+              activeEditor.lines[activeEditor.cursorRow] =
+                curLine.slice(0, activeEditor.cursorCol - 1) + curLine.slice(activeEditor.cursorCol);
+              activeEditor.cursorCol--;
+              activeEditor.modified = true;
+            } else if (activeEditor.cursorRow > 0) {
+              const prevLine = activeEditor.lines[activeEditor.cursorRow - 1];
+              const curLine = activeEditor.lines[activeEditor.cursorRow];
+              activeEditor.cursorCol = prevLine.length;
+              activeEditor.lines[activeEditor.cursorRow - 1] = prevLine + curLine;
+              activeEditor.lines.splice(activeEditor.cursorRow, 1);
+              activeEditor.cursorRow--;
+              activeEditor.modified = true;
+            }
+            continue;
+          }
+
+          if (ch === "\t") {
+            const curLine = activeEditor.lines[activeEditor.cursorRow] ?? "";
+            activeEditor.lines[activeEditor.cursorRow] =
+              curLine.slice(0, activeEditor.cursorCol) + "  " + curLine.slice(activeEditor.cursorCol);
+            activeEditor.cursorCol += 2;
+            activeEditor.modified = true;
+            continue;
+          }
+
+          if (ch >= " " && ch <= "~") {
+            const curLine = activeEditor.lines[activeEditor.cursorRow] ?? "";
+            activeEditor.lines[activeEditor.cursorRow] =
+              curLine.slice(0, activeEditor.cursorCol) + ch + curLine.slice(activeEditor.cursorCol);
+            activeEditor.cursorCol++;
+            activeEditor.modified = true;
+            continue;
+          }
+        }
+
+        // 4. Vi / Vim mode input
+        if (activeEditor.type === "vi") {
+          if (activeEditor.viMode === "command") {
+            if (ch === "\r" || ch === "\n") {
+              if (lastWasCr && ch === "\n") {
+                lastWasCr = false;
+                continue;
+              }
+              lastWasCr = (ch === "\r");
+              const c = activeEditor.commandText.trim();
+              if (c === "w" || c.startsWith("w ") || c === "write") {
+                const content = activeEditor.lines.join("\n");
+                this.scriptRunner.getUserFileMap(player.id).set(activeEditor.filename, content);
+                activeEditor.modified = false;
+                activeEditor.viMode = "normal";
+                activeEditor.commandText = "";
+                activeEditor.statusMessage = `"${activeEditor.filename}" ${activeEditor.lines.length}L, ${content.length}B written`;
+              } else if (c === "q") {
+                if (activeEditor.modified) {
+                  activeEditor.viMode = "normal";
+                  activeEditor.commandText = "";
+                  activeEditor.statusMessage = "E37: No write since last change (add ! to override)";
+                } else {
+                  exitEditor(`\x1b[1;32m[+] vi: closed '${activeEditor.filename}'\x1b[0m\r\n`);
+                  return;
+                }
+              } else if (c === "q!" || c === "quit!") {
+                exitEditor(`\x1b[1;33m[+] vi: quit without saving '${activeEditor.filename}'\x1b[0m\r\n`);
+                return;
+              } else if (c === "wq" || c === "x" || c === "wq!" || c === "x!") {
+                const content = activeEditor.lines.join("\n");
+                this.scriptRunner.getUserFileMap(player.id).set(activeEditor.filename, content);
+                exitEditor(`\x1b[1;32m[+] vi: saved and closed '${activeEditor.filename}'\x1b[0m\r\n`);
+                return;
+              } else {
+                activeEditor.viMode = "normal";
+                activeEditor.statusMessage = `E492: Not an editor command: ${c}`;
+                activeEditor.commandText = "";
+              }
+              continue;
+            }
+            lastWasCr = false;
+
+            if (ch === "\x7f" || ch === "\x08" || ch === "\b") {
+              if (activeEditor.commandText.length > 0) {
+                activeEditor.commandText = activeEditor.commandText.slice(0, -1);
+              } else {
+                activeEditor.viMode = "normal";
+              }
+              continue;
+            }
+
+            if (ch >= " " && ch <= "~") {
+              activeEditor.commandText += ch;
+              continue;
+            }
+          }
+
+          if (activeEditor.viMode === "insert") {
+            if (ch === "\r" || ch === "\n") {
+              if (lastWasCr && ch === "\n") {
+                lastWasCr = false;
+                continue;
+              }
+              lastWasCr = (ch === "\r");
+              const curLine = activeEditor.lines[activeEditor.cursorRow] ?? "";
+              const head = curLine.slice(0, activeEditor.cursorCol);
+              const tail = curLine.slice(activeEditor.cursorCol);
+              activeEditor.lines[activeEditor.cursorRow] = head;
+              activeEditor.lines.splice(activeEditor.cursorRow + 1, 0, tail);
+              activeEditor.cursorRow++;
+              activeEditor.cursorCol = 0;
+              activeEditor.modified = true;
+              continue;
+            }
+            lastWasCr = false;
+
+            if (ch === "\x7f" || ch === "\x08" || ch === "\b") {
+              if (activeEditor.cursorCol > 0) {
+                const curLine = activeEditor.lines[activeEditor.cursorRow];
+                activeEditor.lines[activeEditor.cursorRow] =
+                  curLine.slice(0, activeEditor.cursorCol - 1) + curLine.slice(activeEditor.cursorCol);
+                activeEditor.cursorCol--;
+                activeEditor.modified = true;
+              } else if (activeEditor.cursorRow > 0) {
+                const prevLine = activeEditor.lines[activeEditor.cursorRow - 1];
+                const curLine = activeEditor.lines[activeEditor.cursorRow];
+                activeEditor.cursorCol = prevLine.length;
+                activeEditor.lines[activeEditor.cursorRow - 1] = prevLine + curLine;
+                activeEditor.lines.splice(activeEditor.cursorRow, 1);
+                activeEditor.cursorRow--;
+                activeEditor.modified = true;
+              }
+              continue;
+            }
+
+            if (ch === "\t") {
+              const curLine = activeEditor.lines[activeEditor.cursorRow] ?? "";
+              activeEditor.lines[activeEditor.cursorRow] =
+                curLine.slice(0, activeEditor.cursorCol) + "  " + curLine.slice(activeEditor.cursorCol);
+              activeEditor.cursorCol += 2;
+              activeEditor.modified = true;
+              continue;
+            }
+
+            if (ch >= " " && ch <= "~") {
+              const curLine = activeEditor.lines[activeEditor.cursorRow] ?? "";
+              activeEditor.lines[activeEditor.cursorRow] =
+                curLine.slice(0, activeEditor.cursorCol) + ch + curLine.slice(activeEditor.cursorCol);
+              activeEditor.cursorCol++;
+              activeEditor.modified = true;
+              continue;
+            }
+          }
+
+          if (activeEditor.viMode === "normal") {
+            lastWasCr = false;
+
+            if (ch === "i") {
+              activeEditor.viMode = "insert";
+              activeEditor.statusMessage = "";
+            } else if (ch === "I") {
+              activeEditor.cursorCol = 0;
+              activeEditor.viMode = "insert";
+              activeEditor.statusMessage = "";
+            } else if (ch === "a") {
+              const curLen = activeEditor.lines[activeEditor.cursorRow].length;
+              if (curLen > 0) activeEditor.cursorCol = Math.min(curLen, activeEditor.cursorCol + 1);
+              activeEditor.viMode = "insert";
+              activeEditor.statusMessage = "";
+            } else if (ch === "A") {
+              activeEditor.cursorCol = activeEditor.lines[activeEditor.cursorRow].length;
+              activeEditor.viMode = "insert";
+              activeEditor.statusMessage = "";
+            } else if (ch === "o") {
+              activeEditor.lines.splice(activeEditor.cursorRow + 1, 0, "");
+              activeEditor.cursorRow++;
+              activeEditor.cursorCol = 0;
+              activeEditor.viMode = "insert";
+              activeEditor.modified = true;
+              activeEditor.statusMessage = "";
+            } else if (ch === "O") {
+              activeEditor.lines.splice(activeEditor.cursorRow, 0, "");
+              activeEditor.cursorCol = 0;
+              activeEditor.viMode = "insert";
+              activeEditor.modified = true;
+              activeEditor.statusMessage = "";
+            } else if (ch === "x") {
+              const curLine = activeEditor.lines[activeEditor.cursorRow];
+              if (curLine.length > 0 && activeEditor.cursorCol < curLine.length) {
+                activeEditor.lines[activeEditor.cursorRow] =
+                  curLine.slice(0, activeEditor.cursorCol) + curLine.slice(activeEditor.cursorCol + 1);
+                if (activeEditor.cursorCol >= activeEditor.lines[activeEditor.cursorRow].length && activeEditor.cursorCol > 0) {
+                  activeEditor.cursorCol--;
+                }
+                activeEditor.modified = true;
+              }
+            } else if (ch === "d") {
+              if (activeEditor.lastNormalKey === "d") {
+                activeEditor.lastNormalKey = "";
+                activeEditor.cutBuffer = activeEditor.lines[activeEditor.cursorRow];
+                if (activeEditor.lines.length > 1) {
+                  activeEditor.lines.splice(activeEditor.cursorRow, 1);
+                  if (activeEditor.cursorRow >= activeEditor.lines.length) activeEditor.cursorRow = activeEditor.lines.length - 1;
+                  activeEditor.cursorCol = Math.min(activeEditor.cursorCol, activeEditor.lines[activeEditor.cursorRow].length);
+                } else {
+                  activeEditor.lines[0] = "";
+                  activeEditor.cursorCol = 0;
+                }
+                activeEditor.modified = true;
+                activeEditor.statusMessage = "1 line deleted";
+              } else {
+                activeEditor.lastNormalKey = "d";
+              }
+              continue;
+            } else if (ch === "y") {
+              if (activeEditor.lastNormalKey === "y") {
+                activeEditor.lastNormalKey = "";
+                activeEditor.cutBuffer = activeEditor.lines[activeEditor.cursorRow];
+                activeEditor.statusMessage = "1 line yanked";
+              } else {
+                activeEditor.lastNormalKey = "y";
+              }
+              continue;
+            } else if (ch === "p") {
+              if (activeEditor.cutBuffer !== null) {
+                activeEditor.lines.splice(activeEditor.cursorRow + 1, 0, activeEditor.cutBuffer);
+                activeEditor.cursorRow++;
+                activeEditor.cursorCol = 0;
+                activeEditor.modified = true;
+              }
+            } else if (ch === "P") {
+              if (activeEditor.cutBuffer !== null) {
+                activeEditor.lines.splice(activeEditor.cursorRow, 0, activeEditor.cutBuffer);
+                activeEditor.cursorCol = 0;
+                activeEditor.modified = true;
+              }
+            } else if (ch === "Z") {
+              if (activeEditor.lastNormalKey === "Z") {
+                const content = activeEditor.lines.join("\n");
+                this.scriptRunner.getUserFileMap(player.id).set(activeEditor.filename, content);
+                exitEditor(`\x1b[1;32m[+] vi: saved and closed '${activeEditor.filename}'\x1b[0m\r\n`);
+                return;
+              } else {
+                activeEditor.lastNormalKey = "Z";
+              }
+              continue;
+            } else if (ch === ":") {
+              activeEditor.viMode = "command";
+              activeEditor.commandText = "";
+              activeEditor.statusMessage = "";
+            } else if (ch === "h") {
+              activeEditor.cursorCol = Math.max(0, activeEditor.cursorCol - 1);
+            } else if (ch === "l") {
+              const maxCol = Math.max(0, activeEditor.lines[activeEditor.cursorRow].length - 1);
+              activeEditor.cursorCol = Math.min(maxCol, activeEditor.cursorCol + 1);
+            } else if (ch === "j") {
+              if (activeEditor.cursorRow < activeEditor.lines.length - 1) {
+                activeEditor.cursorRow++;
+                const maxCol = Math.max(0, activeEditor.lines[activeEditor.cursorRow].length - 1);
+                activeEditor.cursorCol = Math.min(maxCol, activeEditor.cursorCol);
+              }
+            } else if (ch === "k") {
+              if (activeEditor.cursorRow > 0) {
+                activeEditor.cursorRow--;
+                const maxCol = Math.max(0, activeEditor.lines[activeEditor.cursorRow].length - 1);
+                activeEditor.cursorCol = Math.min(maxCol, activeEditor.cursorCol);
+              }
+            } else if (ch === "0") {
+              activeEditor.cursorCol = 0;
+            } else if (ch === "$") {
+              activeEditor.cursorCol = Math.max(0, activeEditor.lines[activeEditor.cursorRow].length - 1);
+            } else if (ch === "G") {
+              activeEditor.cursorRow = activeEditor.lines.length - 1;
+              activeEditor.cursorCol = 0;
+            } else if (ch === "g") {
+              if (activeEditor.lastNormalKey === "g") {
+                activeEditor.lastNormalKey = "";
+                activeEditor.cursorRow = 0;
+                activeEditor.cursorCol = 0;
+              } else {
+                activeEditor.lastNormalKey = "g";
+              }
+              continue;
+            } else if (ch === "u") {
+              activeEditor.statusMessage = "Already at oldest change";
+            }
+
+            activeEditor.lastNormalKey = "";
+          }
+        }
+      }
+
+      if (activeEditor) {
+        renderEditor();
+      }
+    };
+
     let currentLine = "";
     let cursorPos = 0;
     const history: string[] = [];
@@ -286,9 +923,28 @@ export class ArenaSshServer extends EventEmitter {
     let lastWasCr = false;
     let escapeBuffer = "";
     let inEscape = false;
+    let multilineLines: string[] = [];
 
     stream.on("data", (chunk: Buffer) => {
       const input = chunk.toString("utf-8");
+
+      // If active interactive editor (nano/vi) is open, route keystrokes directly
+      if (activeEditor) {
+        processEditorChunk(input);
+        return;
+      }
+
+      // If a full multi-line script was pasted all at once (contains newlines and has a for/while block)
+      if (input.includes("\n") || input.includes("\r")) {
+        const trimmed = input.trim();
+        if (this.scriptRunner.isScriptCommand(trimmed) || /for\s+[\s\S]+in\s+[\s\S]+do[\s\S]+done/i.test(trimmed)) {
+          this.handleCommand(trimmed, stream, player, inMsfConsole, (newInMsf) => {
+            inMsfConsole = newInMsf;
+            stream.write(inMsfConsole ? msfPrompt : promptStr);
+          });
+          return;
+        }
+      }
 
       for (let i = 0; i < input.length; i++) {
         const ch = input[i];
@@ -407,6 +1063,7 @@ export class ArenaSshServer extends EventEmitter {
           currentLine = "";
           cursorPos = 0;
           historyIdx = -1;
+          multilineLines = [];
           stream.write("^C\r\n" + (inMsfConsole ? msfPrompt : promptStr));
           lastWasCr = false;
           continue;
@@ -468,6 +1125,36 @@ export class ArenaSshServer extends EventEmitter {
               stream.write(promptStr);
               continue;
             }
+          }
+
+          // Multi-line block buffering (e.g. for ... do ... done)
+          if (multilineLines.length > 0) {
+            multilineLines.push(cmd);
+            if (cmd === "done" || cmd.endsWith("; done") || cmd.endsWith(";done") || cmd === "fi") {
+              const fullCmd = multilineLines.join("\n");
+              multilineLines = [];
+              this.handleCommand(fullCmd, stream, player, inMsfConsole, (newInMsf) => {
+                inMsfConsole = newInMsf;
+                stream.write(inMsfConsole ? msfPrompt : promptStr);
+              });
+            } else {
+              stream.write("> ");
+            }
+            continue;
+          }
+
+          if (/^(?:for\b|while\b)/i.test(cmd) && !/\bdone\b/i.test(cmd)) {
+            multilineLines.push(cmd);
+            stream.write("> ");
+            continue;
+          }
+
+          // Check for interactive text editors: nano, vi, vim
+          const nanoMatch = cmd.match(/^nano(?:\s+(.+))?$/i);
+          const viMatch = cmd.match(/^(?:vi|vim)(?:\s+(.+))?$/i);
+          if (nanoMatch || viMatch) {
+            openEditor(nanoMatch ? "nano" : "vi", (nanoMatch || viMatch)![1]);
+            continue;
           }
 
           this.handleCommand(cmd, stream, player, inMsfConsole, (newInMsf) => {
@@ -563,7 +1250,7 @@ export class ArenaSshServer extends EventEmitter {
         return;
       }
 
-      if (cmd === "help") {
+      if (cmd === "help" || cmd === "?") {
         stream.write(
           "\r\n\x1b[1m=== CTF ARENA SSH SHELL COMMANDS ===\x1b[0m\r\n" +
             "  \x1b[32mwhois -h <IP> <domain>\x1b[0m         : 모의 Whois 레지스트리 질의\r\n" +
@@ -571,6 +1258,8 @@ export class ArenaSshServer extends EventEmitter {
             "  \x1b[32mnmap -sV -p <port> <IP>\x1b[0m        : 포트 스캔 및 서비스 배너 지문 수집\r\n" +
             "  \x1b[32mnmap -sS <CIDR>\x1b[0m                : 서브넷 가상 호스트 탐지 (예: 10.10.1.0/24)\r\n" +
             "  \x1b[32mcurl -I http://<IP>:<port>\x1b[0m     : 웹 헤더 및 노출 파일(config.env 등) 확인\r\n" +
+            "  \x1b[32mnano <filename>\x1b[0m                : 나노(nano) 대화형 텍스트 편집기 (Ctrl+O 저장, Ctrl+X 종료)\r\n" +
+            "  \x1b[32mvi / vim <filename>\x1b[0m            : vi / vim 대화형 텍스트 편집기 (:wq 저장/종료, :q! 강제종료)\r\n" +
             "  \x1b[32mmsfconsole\x1b[0m                     : 메타스플로잇 프레임워크 대화형 모드 진입\r\n" +
             "  \x1b[33mscore\x1b[0m                          : 나의 점수 및 탈취 서버 현황 확인\r\n" +
             "  \x1b[33mstatus\x1b[0m                         : 200 노드 격자 및 경기 남은 시간 요약\r\n" +
@@ -711,6 +1400,10 @@ export class ArenaSshServer extends EventEmitter {
         const targetIp = ipMatch ? ipMatch[1] : "10.10.1.25";
         const res = this.mockMesh.accessS3Bucket(targetIp, "config.env");
         outputText = res.output || `fatal error: An error occurred (403 Forbidden) when connecting to ${targetIp}:9000.\r\n`;
+      }
+      // 6. Interactive editor warning in non-interactive sessions
+      else if (cmd.startsWith("nano") || cmd.startsWith("vi ") || cmd === "vi" || cmd.startsWith("vim ") || cmd === "vim") {
+        outputText = `[-] Error: Interactive editor (nano/vi) requires an interactive TTY. Connect via: ssh -p <port> <user>@<host>\r\n`;
       }
       // Generic fallback execution
       else {

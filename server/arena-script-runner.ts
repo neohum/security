@@ -317,7 +317,7 @@ export class ArenaScriptRunner {
   public isScriptCommand(rawCmd: string): boolean {
     const cmd = rawCmd.trim();
     return (
-      /^for\s+.+in\s+.+do.+done$/is.test(cmd) ||
+      /for\s+[\s\S]+in\s+[\s\S]+do[\s\S]+done/i.test(cmd) ||
       cmd.startsWith("python") ||
       cmd.startsWith("bash ") ||
       cmd.startsWith("bash") ||
@@ -531,8 +531,8 @@ export class ArenaScriptRunner {
       return this.executeShellScriptFile("auto_pwn.sh", playerId);
     }
 
-    // 10. Bash for loop: `for i in {1..200}; do ...; done`
-    if (/^for\s+/i.test(cmd)) {
+    // 10. Bash for loop: `for i in {1..200}; do ...; done` or multiline script with for loop
+    if (/for\s+[\s\S]+in\s+[\s\S]+do[\s\S]+done/i.test(cmd)) {
       return this.runBashForLoop(cmd, playerId);
     }
 
@@ -613,7 +613,9 @@ export class ArenaScriptRunner {
         if (evalOutcome.success) {
           output += `\x1b[1;32m[!] [${label} 취약점 발견 및 탈취]\x1b[0m ${node.ip} -> Flag: \x1b[33m${node.flag}\x1b[0m (+${pts} PT${fbStr})\r\n`;
         } else if (evalOutcome.duplicate) {
-          output += `\x1b[90m[-] [${label} 기탈취 노드]\x1b[0m ${node.ip} -> 이미 탈취 완료된 노드입니다.\x1b[0m\r\n`;
+          output += `\x1b[1;33m[!] [${label} 취약 노드 확인]\x1b[0m ${node.ip} -> Flag: \x1b[33m${node.flag}\x1b[0m \x1b[90m(기탈취 노드)\x1b[0m\r\n`;
+        } else {
+          output += `\x1b[1;32m[!] [${label} 취약 정보 유출 발견]\x1b[0m ${node.ip} -> Flag: \x1b[33m${node.flag}\x1b[0m \x1b[90m(${node.hostname})\x1b[0m\r\n`;
         }
       }
       return nodes.length;
@@ -743,6 +745,12 @@ export class ArenaScriptRunner {
       if (evalOutcome.success) {
         output += `\x1b[1;32m[+] VULNERABLE TARGET COMPROMISED: ${node.ip} (${node.category})\x1b[0m -> +${pts} PT${fbText}\r\n`;
         output += `    | Flag: \x1b[33m${node.flag || "FLAG{AUTO_PWN}"}\x1b[0m\r\n`;
+      } else if (evalOutcome.duplicate) {
+        output += `\x1b[1;33m[+] VULNERABLE TARGET (ALREADY COMPROMISED): ${node.ip} (${node.category})\x1b[0m\r\n`;
+        output += `    | Flag: \x1b[33m${node.flag || "FLAG{AUTO_PWN}"}\x1b[0m\r\n`;
+      } else {
+        output += `\x1b[1;32m[+] VULNERABLE TARGET DISCOVERED: ${node.ip} (${node.category})\x1b[0m\r\n`;
+        output += `    | Flag: \x1b[33m${node.flag || "FLAG{AUTO_PWN}"}\x1b[0m | Host: ${node.hostname} \x1b[90m[연습 모드]\x1b[0m\r\n`;
       }
     }
 
